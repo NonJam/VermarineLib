@@ -1,5 +1,7 @@
 pub mod physics;
 pub mod components;
+pub mod input;
+pub mod starter;
 
 pub mod prelude {
     pub use crate::physics::physics_workload;
