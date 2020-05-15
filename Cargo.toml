@@ -1,0 +1,8 @@
+[workspace]
+members = [ 
+    "vermarine-lib",
+]
+exclude = [
+    "tetra",
+    "shipyard",
+]

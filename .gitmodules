@@ -1,0 +1,6 @@
+[submodule "tetra"]
+	path = tetra
+	url = https://github.com/NonJam/tetra
+[submodule "shipyard"]
+    path = shipyard
+    url = https://github.com/NonJam/shipyard
