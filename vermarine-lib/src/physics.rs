@@ -296,13 +296,13 @@ mod sat {
         }
 
         pub fn overlaps(&self, other: &Projection) -> bool {
-            if self.min > other.min && self.min < other.max {
+            if self.min >= other.min && self.min <= other.max {
                 return true;
             } 
-            else if self.max > other.min && self.max < other.max {
+            else if self.max >= other.min && self.max <= other.max {
                 return true;
             } 
-            else if self.max > other.max && self.min < other.min {
+            else if self.max >= other.max && self.min <= other.min {
                 return true;
             }
 
