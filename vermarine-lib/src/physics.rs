@@ -1,4 +1,5 @@
 use shipyard::*;
+use tetra::math::Vec2;
 
 use crate::components::Transform;
 
@@ -33,7 +34,7 @@ pub fn calc_collisions(transforms: View<Transform>, mut colliders: ViewMut<Colli
             let c1 = &mut (body1.1).1.colliders[0];
             let c2 = &mut (body2.1).1.colliders[0];
             
-            if collider_overlaps_collider((body1.1).0, c1, (body2.1).0, c2) {                
+            if sat::seperating_axis_test((body1.1).0, &c1.shape, (body2.1).0, &c2.shape) {
                 if c1.collides_with & c2.collision_layer > 0 {
                     let collision = Collision::new((body1.1).0.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
                         (body2.1).0.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, body2.0);
@@ -53,34 +54,27 @@ pub fn calc_collisions(transforms: View<Transform>, mut colliders: ViewMut<Colli
 }
 
 pub struct PhysicsWorld {
-    bodies: Vec<CollisionBody>,
     transforms: Vec<Transform>,
+    bodies: Vec<CollisionBody>,
+    sparse: Vec<usize>,
 }
 
 impl PhysicsWorld {
-    pub fn move_and_collide(id: EntityId, ) -> Option<Collision> {
+    pub fn move_and_collide(&mut self, id: EntityId) -> Option<Collision> {
         
 
         None
     }
-}
 
-fn blah() {
-    let mut blah = PhysicsBody {
-        dx: 0.0,
-        dy: 0.0,
-        handler: vec![],
-    };
-
-    let to_add = 20.0;
-    let delta = 10.0;
-
-    blah.move_delta(delta, 15.0, Box::from(move |body: &mut PhysicsBody| { body.dx += to_add; }));
-
-    let blah2 = blah.handler.pop().unwrap();
-    blah2(&mut blah);
-
-    println!("{} == {}", blah.dx, to_add + delta);
+    pub fn data_from_id(&mut self, id: EntityId) -> Option<(&mut Transform, &mut CollisionBody)> {
+        let index = id.uindex();
+        if let Some(index) = self.sparse.get_mut(index) {
+            let transform = self.transforms.get_mut(*index).unwrap();
+            let body = self.bodies.get_mut(*index).unwrap();
+            return Some((transform, body));
+        }
+        None
+    }
 }
 
 pub struct PhysicsBody {
@@ -182,6 +176,23 @@ impl Collider {
         }
     }
 
+    pub fn half_extents(width: f64, height: f64, collision_layer: u64, collides_with: u64) -> Self {
+        let vertices = vec![
+            Vec2::new(-width, -height),
+            Vec2::new(width, -height),
+            Vec2::new(width, height),
+            Vec2::new(-width, height),
+        ];
+
+        Collider {
+            shape: CollisionShape::Polygon(vertices),
+            collides_with,
+            collision_layer,
+
+            overlapping: vec![],
+        }
+    }
+
     pub fn from_collider(collider: &Collider) -> Self {
         Collider {
             shape: collider.shape.clone(),
@@ -196,23 +207,184 @@ impl Collider {
 #[derive(Clone)]
 pub enum CollisionShape {
     Circle(f64),
-    //Composite(Vec<CollisionShape>),
+    Polygon(Vec<Vec2<f64>>)
 }
 
-pub fn collider_overlaps_collider(t1: &Transform, c1: &Collider, t2: &Transform, c2: &Collider) -> bool {
-    match c1.shape {
-        CollisionShape::Circle(r) => circle_overlaps_collider(t1, r, t2, c2),
+impl CollisionShape {
+    pub fn is_circle(&self) -> bool {
+        match self {
+            Self::Circle(_) => true,
+            _ => false,
+        }
     }
 }
 
-pub fn circle_overlaps_collider(t1: &Transform, c1: f64, t2: &Transform, c2: &Collider) -> bool {
-    match c2.shape {
-        CollisionShape::Circle(r) => circle_overlaps_circle(t1, c1, t2, r),
-    }
-}
+mod sat {
+    use super::*;
 
-pub fn circle_overlaps_circle(t1: &Transform, c1: f64, t2: &Transform, c2: f64) -> bool {
-    let x = (t1.x - t2.x).abs();
-    let y = (t1.y - t2.y).abs();
-    x * x + y * y <= (c1 + c2) * (c1 + c2)
+    pub fn get_axes(shape: &CollisionShape) -> Vec<Vec2<f64>> {
+        use CollisionShape::Polygon;
+        use CollisionShape::Circle;
+
+        match shape {
+            Polygon(vertices) => {
+                // Get the normals of each edge of the polygon
+                let mut axes1 = vec![];
+                for i in 0..(vertices.len() - 1) {
+                    let p1 = vertices[i];
+                    let p2 = vertices[i + 1];
+                    let edge = p1 - p2;
+                    let normal = Vec2::new(-edge.y, edge.x);
+                    axes1.push(normal);
+                }
+                axes1
+            },
+            Circle(r) => {
+                // Circles dont have vertices so we can't calculate any normals here, get_circle_polygon_axis handles this.
+                vec![]
+            },
+        }
+    }
+
+    pub fn get_circle_polygon_axis(circle: &CollisionShape, t1: &Transform, polygon: &CollisionShape, t2: &Transform) -> Vec2<f64> {
+        use CollisionShape::Polygon;
+        use CollisionShape::Circle;
+
+        // Returns a vector from the vertex to the circle 
+        fn get_axis(circle_pos: &Vec2<f64>, vertex: &Vec2<f64>, vertex_pos: &Transform) -> Vec2<f64> {
+            let mut vertex = *vertex;
+            vertex.x += vertex_pos.x;
+            vertex.y += vertex_pos.y;
+
+            circle_pos - vertex
+        }
+
+        if let (Circle(_), Polygon(vertices)) = (circle, polygon) {
+            let circle_pos = Vec2::new(t1.x, t1.y);
+            
+            let start_axis = get_axis(&circle_pos, &vertices[0], t2);
+            let mut smallest: f64 = start_axis.magnitude_squared(); 
+            let mut axis: Vec2<f64> = start_axis;
+
+            // Get the vertex closest to the circle
+            for vertex in vertices.iter() {
+                let found_axis = get_axis(&circle_pos, vertex, t2);
+
+                if found_axis.magnitude_squared() < smallest {
+                    smallest = found_axis.magnitude_squared();
+                    axis = found_axis;
+                }
+            }
+
+            return axis;
+        }
+
+        panic!("get_circle_polygon_axes() with incorrect collider shape arguments");
+    }
+
+    pub struct Projection {
+        pub min: f64,
+        pub max: f64,
+    }
+
+    impl Projection {
+        pub fn new(min: f64, max: f64) -> Self {
+            Projection {
+                min,
+                max,
+            }
+        }
+
+        pub fn overlaps(&self, other: &Projection) -> bool {
+            if self.min > other.min && self.min < other.max {
+                return true;
+            } 
+            else if self.max > other.min && self.max < other.max {
+                return true;
+            } 
+            else if self.max > other.max && self.min < other.min {
+                return true;
+            }
+
+            return false;
+        }
+    }
+
+    pub fn project_shape(shape: &CollisionShape, transform: &Transform, axis: &Vec2<f64>) -> Projection {
+        use CollisionShape::Polygon;
+        use CollisionShape::Circle;
+
+        let pos = Vec2::new(transform.x, transform.y);
+
+        match shape {
+            Polygon(vertices) => {
+                // Get the vertex with the highest dot product with axis
+                // also get the vertex with the lowest dot product with axis
+                let mut projection = Projection::new(axis.dot(vertices[0] + pos), axis.dot(vertices[0] + pos));
+                
+                for vertex in vertices.iter() {
+                    let dot_product = axis.dot(*vertex + pos);
+
+                    if dot_product < projection.min {
+                        projection.min = dot_product;
+                    } else if dot_product > projection.max {
+                        projection.max = dot_product;
+                    }
+                }
+
+                projection
+            },
+            Circle(r) => {
+                // Since a circle has infinite vertices we calculate which one has the highest dot product
+                // this will always be the direction of the axis and the negative direction of the axis
+                let normalized = axis.normalized();
+                let mut min = -normalized * *r;
+                let mut max = normalized * *r;
+                min += pos;
+                max += pos;
+
+                Projection {
+                    min: axis.dot(min),
+                    max: axis.dot(max),
+                }
+            },
+        }
+    }
+
+    pub fn seperating_axis_test(t1: &Transform, c1: &CollisionShape, t2: &Transform, c2: &CollisionShape) -> bool {        
+        use CollisionShape::Circle;
+        
+        // Circle on Circle check needs special case
+        if let (Circle(r1), Circle(r2)) = (c1, c2) {
+            let x = (t1.x - t2.x).abs();
+            let y = (t1.y - t2.y).abs();
+            return x * x + y * y <= (r1 + r2) * (r1 + r2);
+        }
+
+        // Get separating axes
+        let mut axes = get_axes(c1);
+        axes.append(&mut get_axes(c2));
+
+        // Circle on Polygon check needs special case for separating axes
+        if c1.is_circle() {
+            let axis = get_circle_polygon_axis(c1, t1, c2, t2);
+            axes.push(axis);
+        }
+        else if c2.is_circle() {
+            let axis = get_circle_polygon_axis(c2, t2, c1, t1);
+            axes.push(axis);
+        }
+
+        // Project shapes onto axes and check over overlapping
+        for axis in axes.iter() {
+            let p1 = project_shape(c1, t1, axis);
+            let p2 = project_shape(c2, t2, axis);
+
+            if !p1.overlaps(&p2) {
+                return false;
+            }
+        }
+
+        true
+    }
 }
