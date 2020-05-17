@@ -22,8 +22,8 @@ pub fn clear_collisions(mut collision_bodies: ViewMut<CollisionBody>) {
     }
 }
 
-pub fn calc_collisions(transforms: View<Transform>, mut colliders: ViewMut<CollisionBody>) {
-    let mut collected: Vec<(EntityId, (&Transform, &mut CollisionBody))> = (&transforms, &mut colliders).iter().with_id().collect();
+pub fn calc_collisions(mut transforms: ViewMut<Transform>, mut colliders: ViewMut<CollisionBody>) {
+    let mut collected: Vec<(EntityId, (&mut Transform, &mut CollisionBody))> = (&mut transforms, &mut colliders).iter().with_id().collect();
 
     let len = collected.len();
 
@@ -33,10 +33,15 @@ pub fn calc_collisions(transforms: View<Transform>, mut colliders: ViewMut<Colli
         for body2 in right.iter_mut() {
             let c1 = &mut (body1.1).1.colliders[0];
             let c2 = &mut (body2.1).1.colliders[0];
-            
-            let (collided, _mtv) = sat::seperating_axis_test((body1.1).0, &c1.shape, (body2.1).0, &c2.shape);
+            let t1 = &mut (body1.1).0;
+            let t2 = &mut (body2.1).0;
+
+            let (collided, mtv) = sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape);
             if collided {
                 if c1.collides_with & c2.collision_layer > 0 {
+                    t1.x -= mtv.unwrap().x;
+                    t1.y -= mtv.unwrap().y;
+
                     let collision = Collision::new((body1.1).0.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
                         (body2.1).0.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, body2.0);
 
@@ -236,7 +241,7 @@ mod sat {
                     let p2 = vertices[i + 1];
                     let edge = p1 - p2;
                     let normal = Vec2::new(edge.y, -edge.x);
-                    axes1.push(normal);
+                    axes1.push(normal.normalized());
                 }
                 axes1
             },
@@ -277,7 +282,7 @@ mod sat {
                 }
             }
 
-            return axis;
+            return axis.normalized();
         }
 
         panic!("get_circle_polygon_axes() with incorrect collider shape arguments");
@@ -379,20 +384,20 @@ mod sat {
             let y = (t1.y - t2.y).abs();
             if x * x + y * y <= (r1 + r2) * (r1 + r2) {
                 let axis = Vec2::new(t1.x - t2.x, t1.y - t2.y);
-                axes.push(axis);
+                axes.push(axis.normalized());
             } else {
                 return (false, None);
             }
         } // Circle on Polygon check needs special case for separating axes
         else if c1.is_circle() {
             let axis = get_circle_polygon_axis(c1, t1, c2, t2);
-            axes.push(axis);
+            axes.push(axis.normalized());
 
             axes.append(&mut get_axes(&c2));
         }
         else if c2.is_circle() {
             let axis = get_circle_polygon_axis(c2, t2, c1, t1);
-            axes.push(axis);
+            axes.push(axis.normalized());
 
             axes.append(&mut get_axes(&c1));
         } else {
@@ -414,7 +419,7 @@ mod sat {
             } else {
                 // Check if the overlapping area is the smallest we've found
                 let overlap = p1.get_overlap(&p2);
-                if lowest.is_none() || overlap < lowest.unwrap() {
+                if lowest.is_none() || overlap <= lowest.unwrap() {
                     lowest = Some(overlap);
                     mtv = Some(*axis);
                 }
@@ -422,7 +427,11 @@ mod sat {
         }
 
         // This code is only run if there was a collision and if there was a collision there will always be a lowest and an mtv
-        let mtv = mtv.unwrap().normalized() * lowest.unwrap();
+        let mut mtv = mtv.unwrap() * lowest.unwrap();
+        if Vec2::new(t2.x - t1.x, t2.y - t1.y).dot(mtv) < 0.0 {
+            mtv *= -1.0;
+        }
+        
         (true, Some(mtv))
     }
 }
