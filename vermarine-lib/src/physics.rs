@@ -34,7 +34,8 @@ pub fn calc_collisions(transforms: View<Transform>, mut colliders: ViewMut<Colli
             let c1 = &mut (body1.1).1.colliders[0];
             let c2 = &mut (body2.1).1.colliders[0];
             
-            if sat::seperating_axis_test((body1.1).0, &c1.shape, (body2.1).0, &c2.shape) {
+            let (collided, _mtv) = sat::seperating_axis_test((body1.1).0, &c1.shape, (body2.1).0, &c2.shape);
+            if collided {
                 if c1.collides_with & c2.collision_layer > 0 {
                     let collision = Collision::new((body1.1).0.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
                         (body2.1).0.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, body2.0);
@@ -234,12 +235,12 @@ mod sat {
                     let p1 = vertices[i];
                     let p2 = vertices[i + 1];
                     let edge = p1 - p2;
-                    let normal = Vec2::new(-edge.y, edge.x);
+                    let normal = Vec2::new(edge.y, -edge.x);
                     axes1.push(normal);
                 }
                 axes1
             },
-            Circle(r) => {
+            Circle(_) => {
                 // Circles dont have vertices so we can't calculate any normals here, get_circle_polygon_axis handles this.
                 vec![]
             },
@@ -308,6 +309,20 @@ mod sat {
 
             return false;
         }
+
+        pub fn get_overlap(&self, other: &Projection) -> f64 {
+            if self.min >= other.min && self.max <= other.max  {
+                return self.max - self.min;
+            }
+            else if self.max >= other.min && self.max <= other.max {
+                return self.max - other.min;
+            }
+            else if self.min >= other.min && self.min <= other.max {
+                return other.max - self.min;
+            }
+
+            0.0
+        }
     }
 
     pub fn project_shape(shape: &CollisionShape, transform: &Transform, axis: &Vec2<f64>) -> Projection {
@@ -351,22 +366,27 @@ mod sat {
         }
     }
 
-    pub fn seperating_axis_test(t1: &Transform, c1: &CollisionShape, t2: &Transform, c2: &CollisionShape) -> bool {        
+    pub fn seperating_axis_test(t1: &Transform, c1: &CollisionShape, t2: &Transform, c2: &CollisionShape) -> (bool, Option<Vec2<f64>>) {                
         use CollisionShape::Circle;
         
-        // Circle on Circle check needs special case
-        if let (Circle(r1), Circle(r2)) = (c1, c2) {
-            let x = (t1.x - t2.x).abs();
-            let y = (t1.y - t2.y).abs();
-            return x * x + y * y <= (r1 + r2) * (r1 + r2);
-        }
-
         // Get separating axes
-        let mut axes = get_axes(c1);
+        let mut axes = vec![];
+        axes.append(&mut get_axes(c1));
         axes.append(&mut get_axes(c2));
 
-        // Circle on Polygon check needs special case for separating axes
-        if c1.is_circle() {
+        // Circle on Circle check needs special case
+        if let (Circle(r1), Circle(r2)) = (c1, c2) {
+            // Check if circles are overlapping to avoid doing SAT if they aren't
+            let x = (t1.x - t2.x).abs();
+            let y = (t1.y - t2.y).abs();
+            if x * x + y * y <= (r1 + r2) * (r1 + r2) {
+                let axis = Vec2::new(t1.x - t2.x, t1.y - t2.y);
+                axes.push(axis);
+            } else {
+                return (false, None);
+            }
+        } // Circle on Polygon check needs special case for separating axes
+        else if c1.is_circle() {
             let axis = get_circle_polygon_axis(c1, t1, c2, t2);
             axes.push(axis);
         }
@@ -376,15 +396,27 @@ mod sat {
         }
 
         // Project shapes onto axes and check over overlapping
+        let mut lowest: Option<f64> = None;
+        let mut mtv: Option<Vec2<f64>> = None;
+
         for axis in axes.iter() {
             let p1 = project_shape(c1, t1, axis);
             let p2 = project_shape(c2, t2, axis);
 
             if !p1.overlaps(&p2) {
-                return false;
+                return (false, None);
+            } else {
+                // Check if the overlapping area is the smallest we've found
+                let overlap = p1.get_overlap(&p2);
+                if lowest.is_none() || overlap < lowest.unwrap() {
+                    lowest = Some(overlap);
+                    mtv = Some(*axis);
+                }
             }
         }
 
-        true
+        // This code is only run if there was a collision and if there was a collision there will always be a lowest and an mtv
+        let mtv = mtv.unwrap().normalized() * lowest.unwrap();
+        (true, Some(mtv))
     }
 }
