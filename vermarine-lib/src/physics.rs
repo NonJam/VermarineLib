@@ -371,8 +371,6 @@ mod sat {
         
         // Get separating axes
         let mut axes = vec![];
-        axes.append(&mut get_axes(c1));
-        axes.append(&mut get_axes(c2));
 
         // Circle on Circle check needs special case
         if let (Circle(r1), Circle(r2)) = (c1, c2) {
@@ -389,10 +387,18 @@ mod sat {
         else if c1.is_circle() {
             let axis = get_circle_polygon_axis(c1, t1, c2, t2);
             axes.push(axis);
+
+            axes.append(&mut get_axes(&c2));
         }
         else if c2.is_circle() {
             let axis = get_circle_polygon_axis(c2, t2, c1, t1);
             axes.push(axis);
+
+            axes.append(&mut get_axes(&c1));
+        } else {
+            axes.append(&mut get_axes(c1));
+            axes.append(&mut get_axes(c2));
+
         }
 
         // Project shapes onto axes and check over overlapping
