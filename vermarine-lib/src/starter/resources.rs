@@ -9,6 +9,7 @@ pub(crate) type Textures = HashMap<String, Texture>;
 pub(crate) struct Resources {
     pub(crate) textures: Textures
 }
+
 impl Resources {
     pub(crate) fn load(ctx: &mut Context, path: &'static str) -> Self {
 

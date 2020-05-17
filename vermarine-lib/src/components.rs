@@ -46,3 +46,18 @@ impl Transform {
         (dx * dx + dy * dy).sqrt() < self.r + other.r
     }
 }
+
+//
+// Sprite
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Sprite {
+    pub z_index: i64,
+    pub texture: &'static str
+}
+
+impl Sprite {
+    pub fn new(texture: &'static str) -> Self {
+        Sprite { z_index: 0, texture }
+    }
+}

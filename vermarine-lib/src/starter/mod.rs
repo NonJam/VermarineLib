@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::path::Path;
 use shipyard::*;
 use tetra::graphics::DrawParams;
 use tetra::graphics::{self, Color, Texture};
@@ -13,9 +11,6 @@ use Input::*;
 
 mod resources;
 use resources::*;
-
-pub mod components;
-use components::*;
 
 //
 // Game
@@ -78,9 +73,15 @@ impl State<Resources> for GameState {
         // Cornflower blue, as is tradition
         graphics::clear(ctx, Color::rgb(0.392, 0.584, 0.929));
 
-        self.world.run(|transforms: View<Transform>, sprites: View<Sprite>|{
+        self.world.run(|transforms: View<Transform>, sprites: View<Sprite>| {
 
-            for (&transform, &sprite) in (&transforms, &sprites).iter() {
+            let mut to_draw: Vec<(&Transform, &Sprite)> = (&transforms, &sprites).iter().collect();
+
+            to_draw.sort_by(|a,b| {
+                a.1.cmp(b.1)
+            });
+
+            for (&transform, &sprite) in to_draw.iter() {
 
                 let texture = resources.textures.get(&sprite.texture.to_string()).unwrap();
 
