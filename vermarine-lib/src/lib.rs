@@ -6,6 +6,8 @@ pub mod prelude {
 }
 
 pub use physics::physics_workload;
+pub use physics::PhysicsWorld;
+pub use physics::PhysicsBody;
 pub use components::*;
 pub use physics::CollisionBody;
 pub use physics::CollisionShape;
