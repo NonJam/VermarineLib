@@ -16,3 +16,4 @@ pub use physics::Collision;
 
 pub use tetra;
 pub use shipyard;
+pub use rand;

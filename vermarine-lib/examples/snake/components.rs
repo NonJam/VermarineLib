@@ -1,7 +1,7 @@
 pub struct SnakeGame {
-    pub length: usize,
-    pub skip_frames: usize,
-    pub frame_counter: usize,
+    pub length: isize,
+    pub skip_frames: isize,
+    pub frame_counter: isize,
     pub move_x: f64,
     pub move_y: f64,
     pub move_x_prev: f64,
@@ -16,7 +16,7 @@ impl SnakeGame {
             frame_counter: 0,
             move_x_prev: 32f64,
             move_y_prev: 0f64,
-            move_x : 32f64,
+            move_x: 32f64,
             move_y: 0f64
         }
     }
@@ -24,5 +24,5 @@ impl SnakeGame {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Segment {
-    pub position: usize
+    pub position: isize
 }

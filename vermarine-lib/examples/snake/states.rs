@@ -1,4 +1,6 @@
 use shipyard::*;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use vermarine_lib::starter::GameState;
 use vermarine_lib::input::{ Controls, InputAction, Input };
 use InputAction::*;
@@ -14,6 +16,7 @@ pub fn snake_game() -> GameState {
     let world = World::new();
 
     world.add_unique(SnakeGame::new());
+    world.add_unique(StdRng::from_entropy());
 
     world.run(new_game);
 

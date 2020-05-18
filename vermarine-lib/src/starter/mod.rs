@@ -1,6 +1,8 @@
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use shipyard::*;
 use tetra::graphics::DrawParams;
-use tetra::graphics::{self, Color, Texture};
+use tetra::graphics::{ self, Color };
 use tetra::math::Vec2;
 use tetra::{ input, Context, ContextBuilder, Result, State, Trans };
 use tetra::input::*;
