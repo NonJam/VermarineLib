@@ -27,10 +27,48 @@ pub fn clear_collisions(mut physics_bodies: ViewMut<PhysicsBody>, mut physics_wo
     }
 }
 
-pub fn calc_collisions(mut physics_bodies: ViewMut<PhysicsBody>, mut physics_world: UniqueViewMut<PhysicsWorld>) {
+pub fn calc_collisions(physics_bodies: ViewMut<PhysicsBody>, mut physics_world: UniqueViewMut<PhysicsWorld>) {
     let len = physics_world.transforms.len();
-    for index in 0..len {
-        let (transforms, colliders, sparse, reverse_sparse) = physics_world.all_parts_mut();
+    let (transforms, colliders, sparse, reverse_sparse) = physics_world.all_parts_mut();
+
+    if len == 0 {
+        return;
+    }
+
+    // Iterate over each index and check collisions with indices to the right in the array
+    for index in 0..len - 1 {
+        let transforms = transforms.split_at_mut(index + 1);
+        let colliders = colliders.split_at_mut(index + 1);
+
+        let (t1, c1) = (transforms.0.last_mut().unwrap(), colliders.0.last_mut().unwrap());
+
+        let mut counter = index + 1;
+        for (t2, c2) in transforms.1.iter_mut().zip(colliders.1.iter_mut()) {
+            let c1 = &mut c1.colliders[0];
+            let c2 = &mut c2.colliders[0];
+
+            let (collided, _) = sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape);
+            if collided {
+                if c1.collides_with & c2.collision_layer > 0 {
+                    let entity = sparse[reverse_sparse[counter].unwrap()].as_ref().unwrap().1;
+
+                    let collision_data = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
+                        t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, entity);
+
+                    c1.overlapping.push(collision_data);
+                }
+                if c2.collides_with & c1.collision_layer > 0 {
+                    let entity = sparse[reverse_sparse[index].unwrap()].as_ref().unwrap().1;
+
+                    let collision_data = Collision::new(t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer,
+                        t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer, entity);
+
+                    c2.overlapping.push(collision_data);
+                }
+            }
+            counter += 1;
+        }
+        /*
 
         let transforms = &mut transforms.split_at_mut(index);
         let colliders = &mut colliders.split_at_mut(index);
@@ -70,7 +108,7 @@ pub fn calc_collisions(mut physics_bodies: ViewMut<PhysicsBody>, mut physics_wor
 
                 counter += 1;
             }
-        }
+        }*/
     }
 }
 
