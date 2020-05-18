@@ -27,7 +27,7 @@ pub fn clear_collisions(mut physics_bodies: ViewMut<PhysicsBody>, mut physics_wo
     }
 }
 
-pub fn calc_collisions(physics_bodies: ViewMut<PhysicsBody>, mut physics_world: UniqueViewMut<PhysicsWorld>) {
+pub fn calc_collisions(mut physics_world: UniqueViewMut<PhysicsWorld>) {
     let len = physics_world.transforms.len();
     let (transforms, colliders, sparse, reverse_sparse) = physics_world.all_parts_mut();
 
@@ -68,47 +68,6 @@ pub fn calc_collisions(physics_bodies: ViewMut<PhysicsBody>, mut physics_world: 
             }
             counter += 1;
         }
-        /*
-
-        let transforms = &mut transforms.split_at_mut(index);
-        let colliders = &mut colliders.split_at_mut(index);
-
-        let (t1, c1) = (&mut transforms.1[0], &mut colliders.1[0]);
-    
-        let mut counter = 0;
-        for (t2, c2) in transforms.0.iter_mut().zip(colliders.0.iter_mut()) {
-            let entity2 = sparse[reverse_sparse[counter].unwrap()].as_ref().unwrap().1;
-
-            let c1 = &mut c1.colliders[0];
-            let c2 = &mut c2.colliders[0];
-            let (collided, _) = sat::seperating_axis_test(&t1, &c1.shape, t2, &c2.shape);
-            if collided && c1.collides_with & c2.collision_layer > 0 {
-                let collision = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
-                    t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, entity2);
-                c1.overlapping.push(collision.clone()); 
-            }
-
-            counter += 1;
-        }
-    
-        if let (Some((t1, tright)), Some((c1, cright))) = (transforms.1.split_first_mut(), colliders.1.split_first_mut()) {
-
-            let mut counter = index + 1;
-            for (t2, c2) in tright.iter_mut().zip(cright.iter_mut()) {
-                let entity2 = sparse[reverse_sparse[counter].unwrap()].as_ref().unwrap().1;
-
-                let c1 = &mut c1.colliders[0];
-                let c2 = &mut c2.colliders[0];
-                let (collided, _) = sat::seperating_axis_test(&t1, &c1.shape, t2, &c2.shape);
-                if collided && c1.collides_with & c2.collision_layer > 0 {
-                    let collision = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
-                        t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, entity2);
-                    c1.overlapping.push(collision.clone()); 
-                }
-
-                counter += 1;
-            }
-        }*/
     }
 }
 
@@ -173,14 +132,14 @@ impl PhysicsWorld {
             return;
         }
 
-        // Remove entry in sparse array
-        self.sparse[id.uindex()] = None;
-        self.reverse_sparse[body.0.index] = None;
-
         // Check if we are removing the top body
         if body.0.index == self.transforms.len() - 1 {
             self.transforms.pop();
             self.colliders.pop();
+
+            // Remove entry in sparse array
+            self.sparse[id.uindex()] = None;
+            self.reverse_sparse[body.0.index] = None;
         } else {
             // Replace removed_body with popped values to keep vec packed
             self.transforms[body.0.index] = self.transforms.pop().unwrap();
@@ -188,12 +147,11 @@ impl PhysicsWorld {
 
             // Update sparse entry for popped body to point to body
             let popped_id = self.reverse_sparse[self.transforms.len()].unwrap();
-            self.sparse[popped_id].as_mut().unwrap().0.index = body.0.index;
-            self.sparse[popped_id].as_mut().unwrap().1 = *id;
-
-            // Update reverse sparse
-            self.reverse_sparse[self.transforms.len()] = None;
+            
+            self.sparse[id.uindex()] = None;
             self.reverse_sparse[body.0.index] = Some(popped_id);
+            self.reverse_sparse[self.transforms.len()] = None;
+            self.sparse[popped_id].as_mut().unwrap().0.index = body.0.index;
         }
     }
 
