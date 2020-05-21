@@ -5,7 +5,6 @@
 pub struct Transform {
     pub x: f64,
     pub y: f64,
-    pub r: f64,
 }
 
 impl Default for Transform {
@@ -13,17 +12,15 @@ impl Default for Transform {
         Transform {
             x: 0f64,
             y: 0f64,
-            r: 0f64,
         }
     }
 }
 
 impl Transform {
-    pub fn new(x: f64, y: f64, r: f64) -> Self {
+    pub fn new(x: f64, y: f64) -> Self {
         Transform {
             x,
             y,
-            r,
             ..Transform::default()
         }
     }
@@ -39,10 +36,7 @@ impl Transform {
             (result + 270f64) % 360f64
         }
     }
-
-    pub fn collides_with(&self, other: Transform) -> bool {
-        let dx = (self.x - other.x).abs();
-        let dy = (self.y - other.y).abs();
-        (dx * dx + dy * dy).sqrt() < self.r + other.r
-    }
 }
+
+//
+//
