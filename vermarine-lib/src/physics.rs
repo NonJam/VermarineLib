@@ -11,55 +11,9 @@ pub fn physics_workload(world: &World) -> &'static str {
     physics_bodies.update_pack();
 
     world.add_workload(name)
-        .with_system(system!(clear_collisions))
-        .with_system(system!(calc_collisions))
         .build();
 
     name
-}
-
-pub fn clear_collisions(mut physics_bodies: ViewMut<PhysicsBody>, mut physics_world: UniqueViewMut<PhysicsWorld>) {
-    //for physic_body in (&mut physics_bodies).iter() {
-    //    let body = physic_body.collider_mut(&mut physics_world);
-    //    for collider in body.colliders.iter_mut() {
-    //        collider.overlapping.clear();
-    //    }
-    //    for sensor in body.sensors.iter_mut() {
-    //        sensor.overlapping.clear();
-    //    }
-    //}
-}
-
-pub fn calc_collisions(mut physics_world: UniqueViewMut<PhysicsWorld>) {
-    /*let len = physics_world.transforms.len();
-    let (transforms, colliders, sparse, reverse_sparse) = physics_world.all_parts_mut();
-
-    if len == 0 {
-        return;
-    }
-
-    // Iterate over each index and check collisions with indices to the right in the array
-    for index in 0..len - 1 {
-        let transforms = transforms.split_at_mut(index + 1);
-        let colliders = colliders.split_at_mut(index + 1);
-
-        let (t1, c1) = (transforms.0.last_mut().unwrap(), colliders.0.last_mut().unwrap());
-
-        let mut counter = index + 1;
-        for (t2, c2) in transforms.1.iter_mut().zip(colliders.1.iter_mut()) {
-            let c1 = &mut c1.colliders[0];
-            let c2 = &mut c2.colliders[0];
-
-            let (collided, _) = sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape);
-            if collided {
-                let e1 = sparse[reverse_sparse[index].unwrap()].as_ref().unwrap().1;
-                let e2 = sparse[reverse_sparse[counter].unwrap()].as_ref().unwrap().1;
-                PhysicsWorld::handle_collision(t1, c1, t2, c2, e2);
-                PhysicsWorld::handle_collision(t2, c2, t1, c1, e1);
-            }
-            counter += 1;
-        }
-    }*/
 }
 
 #[derive(Clone)]
