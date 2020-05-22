@@ -57,24 +57,24 @@ impl PhysicsWorld {
 
         // Remove bodies
         let removed = bodies.take_removed();
-        let deleted = bodies.take_deleted().into_iter().map(|(id, _)| id).collect::<Vec<EntityId>>();
+        let deleted = bodies.take_deleted().into_iter().map(|(id, _)| id);
 
-        for id in removed.iter() {
+        for id in removed.into_iter() {
             self.remove_body(id);
         }
-        for id in deleted.iter() {
+        for id in deleted {
             self.remove_body(id);
         }
     }
 
-    pub(crate) fn remove_body(&mut self, id: &EntityId) {
-        self.remove_overlapping(&PhysicsBody::new(*id));
+    pub(crate) fn remove_body(&mut self, id: EntityId) {
+        self.remove_overlapping(&PhysicsBody::new(id));
 
         let body = self.sparse[id.uindex()].clone().unwrap();
         let version = id.version();
 
         // Only remove body if the generation of the body matches the generation of the body that was asked to be removed
-        if version != self.sparse[id.uindex()].as_ref().unwrap().0.version {
+        if version != body.0.version {
             return;
         }
 
@@ -105,7 +105,7 @@ impl PhysicsWorld {
         &mut self, 
         entities: &mut EntitiesViewMut, 
         bodies: &mut ViewMut<PhysicsBody>, 
-        id: &EntityId, 
+        id: EntityId, 
         transform: Transform, 
         collider: CollisionBody
     ) {
@@ -125,7 +125,7 @@ impl PhysicsWorld {
             } else {
                 // Replace current body with passed in body
                 body.0.version = id.version();
-                body.1 = *id;
+                body.1 = id;
                 self.transforms[body.0.index] = transform;
                 self.colliders[body.0.index] = collider;
                 return;
@@ -141,12 +141,12 @@ impl PhysicsWorld {
             }
             self.reverse_sparse[body.index] = Some(sparse_index);
             
-            self.sparse[sparse_index] = Some((body, *id));
+            self.sparse[sparse_index] = Some((body, id));
             self.transforms.push(transform);
             self.colliders.push(collider);
         }
 
-        entities.add_component(bodies, PhysicsBody::new(*id), *id);
+        entities.add_component(bodies, PhysicsBody::new(id), id);
     }
 
     pub(crate) fn data_from_index_mut(&mut self, index: usize) -> (&mut Transform, &mut CollisionBody) {
@@ -202,32 +202,13 @@ impl PhysicsWorld {
     //
     //
 
-    pub fn move_body_and_collide(&mut self, body: &PhysicsBody, delta: &Vec2<f64>) {
-        let body = self.sparse[body.id.uindex()].as_ref().unwrap();
+    /// Popping the returned vec of collisions will give you the most recent collision
+    pub fn move_body_and_collide(&mut self, body: &PhysicsBody, delta: &Vec2<f64>) -> Vec<Collision> {
+        let transform = self.transform_mut(body);
+        transform.x += delta.x;
+        transform.y += delta.y;
 
-        let transforms = &mut self.transforms.split_at_mut(body.0.index);
-        let colliders = &mut self.colliders.split_at_mut(body.0.index);
-        let (t1, c1) = (&mut transforms.1[0], &mut colliders.1[0]);
-        t1.x += delta.x;
-        t1.y += delta.y;
-
-        for (transform, collider) in transforms.0.iter_mut().zip(colliders.0.iter_mut()) {
-            let (collided, mtv) = sat::seperating_axis_test(&t1, &c1.colliders[0].shape, transform, &collider.colliders[0].shape);
-            if collided && c1.colliders[0].collides_with & collider.colliders[0].collision_layer > 0 {
-                t1.x -= mtv.unwrap().x;
-                t1.y -= mtv.unwrap().y;
-            }
-        }
-
-        if let (Some((tleft, tright)), Some((cleft, cright))) = (transforms.1.split_first_mut(), colliders.1.split_first_mut()) {
-            for (transform, collider) in tright.iter_mut().zip(cright.iter_mut()) {
-                let (collided, mtv) = sat::seperating_axis_test(&tleft, &cleft.colliders[0].shape, transform, &collider.colliders[0].shape);
-                if collided && cleft.colliders[0].collides_with & collider.colliders[0].collision_layer > 0 {
-                    tleft.x -= mtv.unwrap().x;
-                    tleft.y -= mtv.unwrap().y;
-                }
-            }
-        }
+        self.handle_movement(body, true)
     }
 
     pub fn move_body(&mut self, body: &PhysicsBody, delta: &Vec2<f64>) {
@@ -235,7 +216,7 @@ impl PhysicsWorld {
         transform.x += delta.x;
         transform.y += delta.y;
         
-        self.handle_movement(body);
+        self.handle_movement(body, false);
     }
 
     pub fn move_body_to(&mut self, body: &PhysicsBody, position: &Vec2<f64>) {
@@ -243,29 +224,29 @@ impl PhysicsWorld {
         transform.x = position.x;
         transform.y = position.y;
 
-        self.handle_movement(body);
+        self.handle_movement(body, false);
     }
 
     pub fn move_body_to_x(&mut self, body: &PhysicsBody, x: f64) {
         let transform = self.transform_mut(body);
         transform.x = x;
     
-        self.handle_movement(body);
+        self.handle_movement(body, false);
     }
 
     pub fn move_body_to_y(&mut self, body: &PhysicsBody, y: f64) {
         let transform = self.transform_mut(body);
         transform.y = y;
 
-        self.handle_movement(body);
+        self.handle_movement(body, false);
     }
 
     //
     //
 
-    pub(crate) fn handle_movement(&mut self, body: &PhysicsBody) {
+    pub(crate) fn handle_movement(&mut self, body: &PhysicsBody, resolve_collisions: bool) -> Vec<Collision> {
         self.remove_overlapping(body);
-        self.update_overlapping(body);
+        self.update_overlapping(body, resolve_collisions)
     }
 
     /// Clears all stored overlapping data on the passed in body, also removes any overlapping data on other bodies regarding the passed in body
@@ -279,20 +260,27 @@ impl PhysicsWorld {
     }
 
     /// Finds all overlapping bodies and adds collisions to them all
-    pub(crate) fn update_overlapping(&mut self, body: &PhysicsBody) {
+    pub(crate) fn update_overlapping(&mut self, body: &PhysicsBody, resolve_collisions: bool) -> Vec<Collision> {
         let index = self.sparse[body.id.uindex()].as_ref().unwrap().0.index;
         let (transforms, colliders, sparse, reverse_sparse) = self.all_parts_mut();
         let (tleft, t1, tright) = split_around_index_mut(transforms, index);
         let (cleft, c1, cright) = split_around_index_mut(colliders, index);
 
-        Self::update_overlapping_partial(t1, c1, body.id, tleft, cleft, sparse, reverse_sparse, 0);
-        Self::update_overlapping_partial(t1, c1, body.id, tright, cright, sparse, reverse_sparse, 1 + tleft.len());
+        let mut collisions = vec![];
+        collisions.append(
+            &mut Self::update_overlapping_partial(t1, c1, body.id, resolve_collisions, tleft, cleft, sparse, reverse_sparse, 0)
+        );
+        collisions.append(
+            &mut Self::update_overlapping_partial(t1, c1, body.id, resolve_collisions, tright, cright, sparse, reverse_sparse, 1 + tleft.len())
+        );
+        collisions
     }
 
-    /// Checks all colliders from c_body1 against all colliders from c_body2
-    pub(crate) fn update_overlapping_partial(t1: &Transform, c_body1: &mut CollisionBody, entity1: EntityId, transforms: &mut [Transform], colliders: &mut [CollisionBody], sparse: &[Option<(BodyId, EntityId)>], reverse_sparse: &[Option<usize>], slice_offset: usize) {
+    /// Checks all colliders from c_body1 against all colliders from the provided slice
+    pub(crate) fn update_overlapping_partial(t1: &mut Transform, c_body1: &mut CollisionBody, entity1: EntityId, resolve_collisions: bool, transforms: &mut [Transform], colliders: &mut [CollisionBody], sparse: &[Option<(BodyId, EntityId)>], reverse_sparse: &[Option<usize>], slice_offset: usize) -> Vec<Collision> {
+        let mut collisions = vec![];
         let mut counter = slice_offset;
-        for (t2, c_body2) in transforms.iter().zip(colliders.iter_mut()) {
+        for (t2, c_body2) in transforms.iter_mut().zip(colliders.iter_mut()) {
             // Calculate entities
             let entity2 = sparse[reverse_sparse[counter].unwrap()].as_ref().unwrap().1;
             counter += 1;
@@ -300,50 +288,64 @@ impl PhysicsWorld {
             // Sensor x Sensor
             for sensor1 in c_body1.sensors.iter_mut() {
                 for sensor2 in c_body2.sensors.iter_mut() {
-                    Self::update_overlapping_single(t1, sensor1, entity1, t2, sensor2, entity2, true);
+                    Self::update_overlapping_single(t1, sensor1, entity1, t2, sensor2, entity2, true, false);
                 }
             }
 
             // Sensor1 x Collider2
             for sensor1 in c_body1.sensors.iter_mut() {
                 for collider2 in c_body2.colliders.iter_mut() {
-                    Self::update_overlapping_single(t1, sensor1, entity1, t2, collider2, entity2, false)
+                    Self::update_overlapping_single(t1, sensor1, entity1, t2, collider2, entity2, false, false);
                 }
             }
 
             // Sensor2 x Collider1
             for sensor2 in c_body2.sensors.iter_mut() {
                 for collider1 in c_body1.colliders.iter_mut() {
-                    Self::update_overlapping_single(t2, sensor2, entity2, t1, collider1, entity1, false)
+                    Self::update_overlapping_single(t2, sensor2, entity2, t1, collider1, entity1, false, false);
                 }
             }
 
             // Collider1 x Collider2
             for collider1 in c_body1.colliders.iter_mut() {
                 for collider2 in c_body2.colliders.iter_mut() {
-                    Self::update_overlapping_single(t1, collider1, entity1, t2, collider2, entity2, true);
+                    if let Some(collision) = Self::update_overlapping_single(t1, collider1, entity1, t2, collider2, entity2, true, resolve_collisions) {
+                        collisions.push(collision);
+                    }
                 }
             }
         }
+        collisions
     }
 
-    pub(crate) fn update_overlapping_single(t1: &Transform, c1: &mut Collider, e1: EntityId, t2: &Transform, c2: &mut Collider, e2: EntityId, check_both: bool) {
-        let (collided, _) = sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape);
+    pub(crate) fn update_overlapping_single(t1: &mut Transform, c1: &mut Collider, e1: EntityId, t2: &mut Transform, c2: &mut Collider, e2: EntityId, check_both: bool, resolve_collisions: bool) -> Option<Collision>{
+        let (collided, mtv) = sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape);
         if collided {
-            Self::handle_collision(t1, c1, t2, c2, e2);
+            let collision = Self::handle_collision(t1, c1, t2, c2, e2, mtv, resolve_collisions);
             if check_both {
-                Self::handle_collision(t2, c2, t1, c1, e1);
+                Self::handle_collision(t2, c2, t1, c1, e1, mtv, false);
             }
+            return collision;
         }
+        None
     }
 
-    pub(crate) fn handle_collision(t1: &Transform, c1: &mut Collider, t2: &Transform, c2: &Collider, e2: EntityId) {
+    pub(crate) fn handle_collision(t1: &mut Transform, c1: &mut Collider, t2: &Transform, c2: &Collider, e2: EntityId, mtv: Option<Vec2<f64>>, resolve_collisions: bool) -> Option<Collision> {
         if c1.collides_with & c2.collision_layer > 0 {
             let collision_data = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
-                t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, e2);
+                t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, e2, mtv.unwrap().normalized());
     
-            c1.overlapping.push(collision_data);
+            c1.overlapping.push(collision_data.clone());
+
+            if resolve_collisions {
+                let mtv = mtv.unwrap();
+                t1.x += mtv.x;
+                t1.y += mtv.y;
+            }
+
+            return Some(collision_data);
         }
+        None
     }
 }
 
@@ -395,8 +397,8 @@ impl PhysicsBody {
         world.parts(self)
     }
 
-    pub fn move_body_and_collide(&self, world: &mut PhysicsWorld, delta: &Vec2<f64>) {
-        world.move_body_and_collide(self, delta);
+    pub fn move_body_and_collide(&self, world: &mut PhysicsWorld, delta: &Vec2<f64>) -> Vec<Collision> {
+        world.move_body_and_collide(self, delta)
     }
 
     pub fn move_body(&self, world: &mut PhysicsWorld, delta: &Vec2<f64>) {
@@ -428,11 +430,13 @@ pub struct Collision {
     pub collides_with2: u64,
     pub collision_layer2: u64,
     pub entity2: EntityId,
+
+    pub normal: Vec2<f64>,
 }
 
 impl Collision {
     pub fn new(transform1: Transform, shape1: CollisionShape, collides_with1: u64, collision_layer1: u64,
-        transform2: Transform, shape2: CollisionShape, collides_with2: u64, collision_layer2: u64, entity2: EntityId) -> Self {
+        transform2: Transform, shape2: CollisionShape, collides_with2: u64, collision_layer2: u64, entity2: EntityId, normal: Vec2<f64>) -> Self {
         Collision {
             transform1,
             shape1,
@@ -444,6 +448,8 @@ impl Collision {
             collides_with2,
             collision_layer2,
             entity2,
+
+            normal,
         }
     }
 }
@@ -855,7 +861,7 @@ mod sat {
 
         // This code is only run if there was a collision and if there was a collision there will always be a lowest and an mtv
         let mut mtv = mtv.unwrap() * lowest.unwrap();
-        if Vec2::new(t2.x - t1.x, t2.y - t1.y).dot(mtv) < 0.0 {
+        if Vec2::new(t2.x - t1.x, t2.y - t1.y).dot(mtv) > 0.0 {
             mtv *= -1.0;
         }
         
@@ -873,15 +879,12 @@ mod tests {
         let world = World::new();
         super::physics_workload(&world);
 
-        let mut e1 = None;
-        let mut e2 = None;
-
         // Setup
-        world.run(|
+        let [e1, e2] = world.run(|
             mut entities: EntitiesViewMut,
             mut bodies: ViewMut<PhysicsBody>,
             mut physics_world: UniqueViewMut<PhysicsWorld>| { 
-                e1 = Some(entities.add_entity((), ()));
+                e1 = entities.add_entity((), ());
                 physics_world.create_body(
                     &mut entities, 
                     &mut bodies, 
@@ -890,7 +893,7 @@ mod tests {
                     CollisionBody::from_collider(Collider::half_extents(2.0, 2.0, 1, 2)),
                 );
 
-                e2 = Some(entities.add_entity((), ()));
+                e2 = entities.add_entity((), ());
                 physics_world.create_body(
                     &mut entities, 
                     &mut bodies, 
@@ -909,6 +912,8 @@ mod tests {
                 let body = bodies.get(e1.unwrap()).unwrap();
                 assert_eq!(body.collider(&mut physics_world).colliders[0].overlapping.len(), 1);
                 assert_eq!(body.collider(&mut physics_world).colliders[0].overlapping[0].entity2, e2.unwrap());
+
+                [e1, e2]
         });
 
         // Kill entity
@@ -918,7 +923,7 @@ mod tests {
                 let (mut bodies, mut physics_world) = all_storages.borrow::<(ViewMut<PhysicsBody>, UniqueViewMut<PhysicsWorld>)>();
 
                 // Check for collision
-                let body = bodies.get(e1.unwrap()).unwrap();
+                let body = bodies.get(e1).unwrap();
                 let collision_body = body.collider(&mut physics_world);
                 
                 assert_eq!(collision_body.colliders[0].overlapping.len(), 1);
@@ -932,7 +937,7 @@ mod tests {
             let (mut world, mut bodies) = all_storages.borrow::<(UniqueViewMut<PhysicsWorld>, ViewMut<PhysicsBody>)>();
             world.sync(&mut bodies);
 
-            let body = bodies.get(e1.unwrap()).unwrap();
+            let body = bodies.get(e1).unwrap();
             let collision_body = body.collider(&mut world);
             assert_eq!(collision_body.colliders[0].overlapping.len(), 0);
         });
@@ -941,7 +946,7 @@ mod tests {
         world.run(|
             mut bodies: ViewMut<PhysicsBody>,
             mut world: UniqueViewMut<PhysicsWorld>,| {
-                let body = bodies.get(e1.unwrap()).unwrap();
+                let body = bodies.get(e1);
                 body.move_body(&mut world, &tetra::math::Vec2::new(-10.0, -10.0));
                 assert_eq!(body.collider(&mut world).colliders[0].overlapping.len(), 0);
         });
@@ -955,15 +960,12 @@ mod tests {
         let world = World::new();
         super::physics_workload(&world);
 
-        let mut e1 = None;
-        let mut e2 = None;
-
         // Setup
-        world.run(|
+        let [e1, e2] = world.run(|
             mut entities: EntitiesViewMut,
             mut bodies: ViewMut<PhysicsBody>,
             mut physics_world: UniqueViewMut<PhysicsWorld>| { 
-                e1 = Some(entities.add_entity((), ()));
+                e1 = entities.add_entity((), ());
                 physics_world.create_body(
                     &mut entities, 
                     &mut bodies, 
@@ -974,7 +976,7 @@ mod tests {
 
                 (0..100).for_each(|_| { entities.add_entity((), ()); });
 
-                e2 = Some(entities.add_entity((), ()));
+                e2 = entities.add_entity((), ());
                 physics_world.create_body(
                     &mut entities, 
                     &mut bodies, 
@@ -983,17 +985,17 @@ mod tests {
                     CollisionBody::from_collider(Collider::half_extents(2.0, 2.0, 2, 1)),
                 );
                 
-                println!("E1: {:?}\nE2: {:?}\n", e1.unwrap(), e2.unwrap());
+                println!("E1: {:?}\nE2: {:?}\n", e1, e2);
 
                 // Move e2 into e1
-                let body = bodies.get(e2.unwrap()).unwrap();
+                let body = bodies.get(e2).unwrap();
                 body.move_body(&mut physics_world, &tetra::math::Vec2::new(10.0, 10.0));
 
                 assert_eq!(body.collider(&mut physics_world).colliders[0].overlapping.len(), 0);
 
-                let body = bodies.get(e1.unwrap()).unwrap();
+                let body = bodies.get(e1).unwrap();
                 assert_eq!(body.collider(&mut physics_world).sensors[0].overlapping.len(), 1);
-                assert_eq!(body.collider(&mut physics_world).sensors[0].overlapping[0].entity2, e2.unwrap());
+                assert_eq!(body.collider(&mut physics_world).sensors[0].overlapping[0].entity2, e2);
         });
 
         // Kill entity
@@ -1003,7 +1005,7 @@ mod tests {
                 let (mut bodies, mut physics_world) = all_storages.borrow::<(ViewMut<PhysicsBody>, UniqueViewMut<PhysicsWorld>)>();
 
                 // Check for collision
-                let body = bodies.get(e1.unwrap()).unwrap();
+                let body = bodies.get(e1).unwrap();
                 let collision_body = body.collider(&mut physics_world);
                 
                 assert_eq!(collision_body.sensors[0].overlapping.len(), 1);
@@ -1017,7 +1019,7 @@ mod tests {
             let (mut world, mut bodies) = all_storages.borrow::<(UniqueViewMut<PhysicsWorld>, ViewMut<PhysicsBody>)>();
             world.sync(&mut bodies);
 
-            let body = bodies.get(e1.unwrap()).unwrap();
+            let body = bodies.get(e1).unwrap();
             let collision_body = body.collider(&mut world);
             assert_eq!(collision_body.sensors[0].overlapping.len(), 0);
         });
@@ -1026,7 +1028,7 @@ mod tests {
         world.run(|
             mut bodies: ViewMut<PhysicsBody>,
             mut world: UniqueViewMut<PhysicsWorld>,| {
-                let body = bodies.get(e1.unwrap()).unwrap();
+                let body = bodies.get(e1).unwrap();
                 body.move_body(&mut world, &tetra::math::Vec2::new(-10.0, -10.0));
                 assert_eq!(body.collider(&mut world).sensors[0].overlapping.len(), 0);
         });
