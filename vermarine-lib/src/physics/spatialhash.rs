@@ -28,12 +28,17 @@ impl SpatialBuckets {
         let (xmin, ymin) = self.point_to_cell(xmin, ymin);
         let (xmax, ymax) = self.point_to_cell(xmax, ymax);
 
-        while xmax >= self.width || ymax >= self.height {
+        while 
+            self.wrap_point(xmin) >= self.width || 
+            self.wrap_point(xmax) >= self.width || 
+            self.wrap_point(ymin) >= self.height || 
+            self.wrap_point(ymax) >= self.height {
             self.resize();
         }
 
         for x in xmin..=xmax {
             for y in ymin..=ymax {
+                let (x, y) = self.wrap_cell(x, y);
                 self.buckets[y * self.width + x].push(id);
             }
         }
@@ -48,12 +53,17 @@ impl SpatialBuckets {
         let (xmin, ymin) = self.point_to_cell(xmin, ymin);
         let (xmax, ymax) = self.point_to_cell(xmax, ymax);
 
-        while xmax >= self.width || ymax >= self.height {
+        while 
+            self.wrap_point(xmin) >= self.width || 
+            self.wrap_point(xmax) >= self.width || 
+            self.wrap_point(ymin) >= self.height || 
+            self.wrap_point(ymax) >= self.height {
             self.resize();
         }
 
         for x in xmin..=xmax {
             for y in ymin..=ymax {
+                let (x, y) = self.wrap_cell(x, y);
                 self.buckets[y * self.width + x].retain(|&v| v != id );
             }
         }
@@ -68,13 +78,18 @@ impl SpatialBuckets {
         let (xmin, ymin) = self.point_to_cell(xmin, ymin);
         let (xmax, ymax) = self.point_to_cell(xmax, ymax);
 
-        while xmax >= self.width || ymax >= self.height {
+        while 
+            self.wrap_point(xmin) >= self.width || 
+            self.wrap_point(xmax) >= self.width || 
+            self.wrap_point(ymin) >= self.height || 
+            self.wrap_point(ymax) >= self.height {
             self.resize();
         }
 
         let mut nearby = vec![];
         for x in xmin..=xmax {
             for y in ymin..=ymax {
+                let (x, y) = self.wrap_cell(x, y);
                 for e in self.buckets[y * self.width + x].iter() {
                     if *e != id && !nearby.contains(e) {
                         nearby.push(*e);
@@ -96,24 +111,24 @@ impl SpatialBuckets {
         self.height *= 2;
     }
 
-    pub fn point_to_cell(&self, x: f64, y: f64) -> (usize, usize) {
-        let mut x = f64::floor(x / self.bucket_width) as isize;
-        x *= 2;
-        if x < 0 {
-            x *= -1;
-            x -= 1;
-        }
-        let x = x as usize;
-
-        let mut y = f64::floor(y / self.bucket_height) as isize;
-        y *= 2;
-        if y < 0 {
-            y *= -1;
-            y -= 1;
-        }
-        let y = y as usize;
+    pub fn point_to_cell(&self, x: f64, y: f64) -> (isize, isize) {
+        let x = f64::floor(x / self.bucket_width) as isize;
+        let y = f64::floor(y / self.bucket_height) as isize;
 
         (x, y)
+    }
+
+    pub fn wrap_point(&self, point: isize) -> usize {
+        let mut point = point * 2;
+        if point < 0 { 
+            point *= -1;
+            point -= 1;
+        }
+        point as usize
+    }
+
+    pub fn wrap_cell(&self, x: isize, y: isize) -> (usize, usize) {
+        (self.wrap_point(x), self.wrap_point(y))
     }
 }
 
@@ -164,10 +179,13 @@ mod tests {
         let aabb = AABB::new(0.0, 0.0, 10.0, 10.0);
         buckets.insert(id, &Transform::new(5.0, 5.0), &aabb);
 
+        for bucket in buckets.buckets.iter() {
+            println!("{}", bucket.len());
+        }
         assert_eq!(buckets.buckets[0][0], id);
         assert_eq!(buckets.buckets[2][0], id);
-        assert_eq!(buckets.buckets[4][0], id);
-        assert_eq!(buckets.buckets[6][0], id);
+        assert_eq!(buckets.buckets[8][0], id);
+        assert_eq!(buckets.buckets[10][0], id);
         assert_eq!(buckets.buckets.len(), 16);
     }
 
@@ -186,16 +204,16 @@ mod tests {
 
         assert_eq!(buckets.buckets[0][0], id);
         assert_eq!(buckets.buckets[2][0], id);
-        assert_eq!(buckets.buckets[4][0], id);
-        assert_eq!(buckets.buckets[6][0], id);
+        assert_eq!(buckets.buckets[8][0], id);
+        assert_eq!(buckets.buckets[10][0], id);
         assert_eq!(buckets.buckets.len(), 16);
 
         buckets.remove(id, &Transform::new(5.0, 5.0), &aabb);
 
         assert_eq!(buckets.buckets[0].len(), 0);
         assert_eq!(buckets.buckets[2].len(), 0);
-        assert_eq!(buckets.buckets[4].len(), 0);
-        assert_eq!(buckets.buckets[6].len(), 0);
+        assert_eq!(buckets.buckets[8].len(), 0);
+        assert_eq!(buckets.buckets[10].len(), 0);
         assert_eq!(buckets.buckets.len(), 16);
     }
 
@@ -228,13 +246,13 @@ mod tests {
 
         assert_eq!(buckets.buckets[0][0], id1);
         assert_eq!(buckets.buckets[2][0], id1);
-        assert_eq!(buckets.buckets[4][0], id1);
-        assert_eq!(buckets.buckets[6][0], id1);
+        assert_eq!(buckets.buckets[8][0], id1);
+        assert_eq!(buckets.buckets[10][0], id1);
 
         assert_eq!(buckets.buckets[0][1], id2);
         assert_eq!(buckets.buckets[2][1], id2);
-        assert_eq!(buckets.buckets[4][1], id2);
-        assert_eq!(buckets.buckets[6][1], id2);
+        assert_eq!(buckets.buckets[8][1], id2);
+        assert_eq!(buckets.buckets[10][1], id2);
         
         assert_eq!(buckets.buckets.len(), 16);
 
@@ -242,8 +260,8 @@ mod tests {
 
         assert_eq!(buckets.buckets[0][0], id2);
         assert_eq!(buckets.buckets[2][0], id2);
-        assert_eq!(buckets.buckets[4][0], id2);
-        assert_eq!(buckets.buckets[6][0], id2);
+        assert_eq!(buckets.buckets[8][0], id2);
+        assert_eq!(buckets.buckets[10][0], id2);
         
         assert_eq!(buckets.buckets.len(), 16);
     }
@@ -258,7 +276,7 @@ mod tests {
         });
 
         let mut buckets = SpatialBuckets::new(10.0, 10.0);
-        let aabb1 = AABB::new(0.0, 0.0, 3.0, 3.0);
+        let aabb1 = AABB::new(0.0, 0.0, 1.0, 1.0);
         buckets.insert(id, &Transform::new(5.0, 5.0), &aabb1);
 
         assert_eq!(buckets.buckets[0][0], id);
@@ -267,10 +285,112 @@ mod tests {
         buckets.resize();
 
         assert_eq!(buckets.buckets[0][0], id);
-        assert_eq!(buckets.buckets[1].len(), 0);
-        assert_eq!(buckets.buckets[2].len(), 0);
-        assert_eq!(buckets.buckets[3].len(), 0);
-
+        let mut first = true;
+        for bucket in buckets.buckets.iter() {
+            if first {
+                first = false;
+                continue;
+            }
+            assert_eq!(bucket.len(), 0);
+        }
         assert_eq!(buckets.buckets.len(), 4);
+    }
+
+    #[test]
+    fn oob_insert() {
+        use crate::physics::*;
+
+        let world = World::new();
+        let id = world.run(|mut entities: EntitiesViewMut| {
+            entities.add_entity((), ())
+        });
+
+        let mut buckets = SpatialBuckets::new(10.0, 10.0);
+        let aabb1 = AABB::new(0.0, 0.0, 1.0, 1.0);
+        buckets.insert(id, &Transform::new(45.0, 45.0), &aabb1);
+
+        assert_eq!(buckets.buckets[8 * buckets.width + 8][0], id);
+        assert_eq!(buckets.buckets.len(), 256);
+    }
+
+    #[test]
+    fn oob_insert_remove() {
+        use crate::physics::*;
+
+        let world = World::new();
+        let id = world.run(|mut entities: EntitiesViewMut| {
+            entities.add_entity((), ())
+        });
+
+        let mut buckets = SpatialBuckets::new(10.0, 10.0);
+        let aabb1 = AABB::new(0.0, 0.0, 1.0, 1.0);
+        buckets.insert(id, &Transform::new(45.0, 45.0), &aabb1);
+
+        assert_eq!(buckets.buckets[8 * buckets.width + 8][0], id);
+        assert_eq!(buckets.buckets.len(), 256);
+
+        buckets.remove(id, &Transform::new(45.0, 45.0), &aabb1);
+
+        assert_eq!(buckets.buckets[8 * buckets.width + 8].len(), 0);
+        assert_eq!(buckets.buckets.len(), 256);
+    }
+
+    #[test]
+    fn oob_insert_remove_nearby() {
+        use crate::physics::*;
+
+        let world = World::new();
+        let id = world.run(|mut entities: EntitiesViewMut| {
+            entities.add_entity((), ())
+        });
+
+        let mut buckets = SpatialBuckets::new(10.0, 10.0);
+        let aabb1 = AABB::new(0.0, 0.0, 1.0, 1.0);
+        buckets.insert(id, &Transform::new(45.0, 45.0), &aabb1);
+
+        assert_eq!(buckets.buckets[8 * buckets.width + 8][0], id);
+        assert_eq!(buckets.buckets.len(), 256);
+
+        buckets.remove(id, &Transform::new(45.0, 45.0), &aabb1);
+
+        assert_eq!(buckets.buckets[8 * buckets.width + 8].len(), 0);
+        assert_eq!(buckets.buckets.len(), 256);
+
+        let ids = buckets.nearby(EntityId::dead(), &Transform::new(45.0, 45.0), &aabb1);
+        assert_eq!(ids.len(), 0);
+    }
+
+    #[test]
+    fn double_move_nearby() {
+        use crate::physics::*;
+
+        let world = World::new();
+        let id1 = world.run(|mut entities: EntitiesViewMut| {
+            entities.add_entity((), ())
+        });
+        let id2 = world.run(|mut entities: EntitiesViewMut| {
+            entities.add_entity((), ())
+        });
+
+        println!("id1: {:?}, id2: {:?}", id1, id2);
+
+        let mut buckets = SpatialBuckets::new(10.0, 10.0);
+        let aabb1 = AABB::new(0.0, 0.0, 1.0, 1.0);
+        let aabb2 = AABB::new(0.0, 0.0, 1.0, 1.0);
+        let mut t1 = Transform::new(5.0, 5.0);
+        let mut t2 = Transform::new(5.0, 5.0);
+        
+        buckets.insert(id1, &t1, &aabb1);
+        buckets.insert(id2, &t2, &aabb2);
+
+        buckets.remove(id2, &t2, &aabb2);
+
+        t2.x += 20.0;
+        t2.y += 20.0;
+
+        buckets.insert(id2, &t2, &aabb2);
+
+        let nearby = buckets.nearby(id1, &t1, &aabb1);
+        assert_eq!(nearby.len(), 0);
     }
 }

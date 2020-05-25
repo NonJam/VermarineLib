@@ -249,7 +249,7 @@ impl Collider {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct AABB {
     pub dx: f64,
     pub dy: f64,
@@ -315,11 +315,16 @@ impl AABB {
             };
         }
 
-        let aabb = AABB { 
-            dx: 0.0, 
-            dy: 0.0, 
-            width: xmax.unwrap() - xmin.unwrap(), 
-            height: ymax.unwrap() - ymin.unwrap() 
+        let xmin = xmin.unwrap();
+        let xmax = xmax.unwrap();
+        let ymin = ymin.unwrap();
+        let ymax = ymax.unwrap();
+
+        let aabb = AABB {
+            dx: if xmin < 0.0 { xmin } else { 0.0 },
+            dy: if ymin < 0.0 { ymin } else { 0.0 },
+            width: xmax - xmin,
+            height: ymax - ymin,
         };
         aabb
     }
