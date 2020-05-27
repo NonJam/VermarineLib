@@ -1,7 +1,78 @@
 use std::collections::{HashMap,};
-use tetra::graphics::Texture;
-use tetra::Context;
+use tetra::{
+    graphics::{
+        Texture,
+        DrawParams,
+        Drawable,
+    },
+    math::{
+        Vec2,
+    },
+    Context,
+};
 use std::path::Path;
+use shipyard::{
+    *,
+};
+
+use crate::{
+    physics::{
+        PhysicsBody,
+        Transform,
+        world::{
+            PhysicsWorld,
+        },
+    },
+};
+
+pub trait Renderable {
+    fn draw(&mut self, transform: &Transform, context: &mut Context, renderables: &Renderables, entity: EntityId);
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Sprite {
+    pub renderable: &'static str,
+    pub draw_params: DrawParams,
+}
+
+impl Sprite {
+    pub fn new(renderable: &'static str, draw_params: DrawParams) -> Self {
+        Sprite {
+            renderable,
+            draw_params,
+        }
+    }
+
+    //pub fn from_renderable(renderable: &'static str) -> Self {
+    //    Sprite {
+    //        renderable,
+    //        draw_params: DrawParams::new(),
+    //    }
+    //}
+}
+
+impl Renderable for Sprite {
+    fn draw(&mut self, transform: &Transform, context: &mut Context, renderables: &Renderables, _: EntityId) {
+        let texture = if let Some(texture) = renderables.lookup.get(self.renderable) {
+            texture
+        } else { return; };
+
+        let position = self.draw_params.position + Vec2::new(transform.x as f32, transform.y as f32);
+        let mut params = self.draw_params;
+        params.position = position;
+
+        texture.draw(context, params);
+    }
+}
+
+pub fn render_renderables<T: Renderable + Send + Sync + 'static>(data: (&Renderables, &mut Context), bodies: View<PhysicsBody>, physics_world: UniqueViewMut<PhysicsWorld>, mut ts: ViewMut<T>) {
+    let (renderables, context) = data;
+
+    for (id, (_, renderable)) in (&bodies, &mut ts).iter().with_id() {
+        let transform = physics_world.transform(id);
+        renderable.draw(transform, context, renderables, id);
+    }
+}
 
 pub struct Renderables {
     pub lookup: HashMap<&'static str, Texture>,
