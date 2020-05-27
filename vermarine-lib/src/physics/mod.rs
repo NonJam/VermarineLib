@@ -1,29 +1,12 @@
+pub mod world;
+pub mod spatialhash;
+pub mod sat;
+
 use shipyard::*;
 use super::components::*;
 use tetra::math::Vec2;
-
-pub mod world;
 use world::*;
-
-pub mod spatialhash;
-pub use spatialhash::*;
-
-pub mod sat;
-
-pub mod prelude {
-    pub use super::{
-        physics_workload,
-        Collider,
-        Collision,
-        CollisionShape,
-        CollisionBody,
-        AABB,
-        PhysicsBody,
-        world::{
-            PhysicsWorld,
-        },
-    };
-}
+use spatialhash::*;
 
 pub fn physics_workload(world: &World) -> &'static str {
     let name = "Physics";
