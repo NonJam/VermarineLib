@@ -7,17 +7,28 @@ use tetra::math::Vec2;
 use world::*;
 use spatialhash::*;
 
-pub fn physics_workload(world: &World) -> &'static str {
-    let name = "Physics";
-    
-    world.add_unique(PhysicsWorld::new());
-    let mut physics_bodies = world.borrow::<ViewMut<PhysicsBody>>();
-    physics_bodies.update_pack();
+/// Dummy trait to allow adding a method to World
+pub trait PhysicsWorkloadCreator {
+    fn add_physics_workload(&mut self) -> WorkloadBuilder;
+}
 
-    world.add_workload(name)
-        .build();
+impl PhysicsWorkloadCreator for shipyard::World {
+    fn add_physics_workload(&mut self) -> WorkloadBuilder {
+        self.add_unique(PhysicsWorld::new());
+        self.borrow::<ViewMut<PhysicsBody>>().update_pack();
+        self.add_workload("Physics")
+    }
+}
 
-    name
+/// Dummy trait to allow adding a method to WorkloadBuilder
+pub trait PhysicsWorkloadSystems<'a> {
+    fn with_physics_systems(self) -> WorkloadBuilder<'a>;
+}
+
+impl<'a> PhysicsWorkloadSystems<'a> for WorkloadBuilder<'a> {
+    fn with_physics_systems(self) -> WorkloadBuilder<'a> {
+        self
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

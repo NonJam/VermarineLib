@@ -1,84 +1,63 @@
-use std::collections::{HashMap,};
+pub mod draw_buffer;
+pub mod systems;
+
+use std::collections::HashMap;
 use tetra::{
     graphics::{
         Texture,
         DrawParams,
-        Drawable,
-    },
-    math::{
-        Vec2,
     },
     Context,
 };
+use draw_buffer::{
+    DrawCommand,
+    DrawBuffer,
+};
+use shipyard::*;
 use std::path::Path;
-use shipyard::{
-    *,
-};
 
-use crate::{
-    physics::{
-        PhysicsBody,
-        Transform,
-        world::{
-            PhysicsWorld,
-        },
-    },
-};
+/// Dummy trait to allow adding a method to World
+pub trait RenderingWorkloadCreator {
+    fn add_rendering_workload(&mut self) -> WorkloadBuilder;
+}
 
-pub trait Renderable {
-    fn draw(&mut self, transform: &Transform, context: &mut Context, renderables: &Renderables, entity: EntityId);
+impl RenderingWorkloadCreator for World {
+    fn add_rendering_workload(&mut self) -> WorkloadBuilder {
+        self.add_unique(DrawBuffer::new());
+        self.add_workload("Rendering")
+    }
+}
+
+/// Dummy trait to allow adding a method to WorkloadBuilder
+pub trait RenderingWorkloadSystems<'a> {
+    fn with_rendering_systems(self) -> WorkloadBuilder<'a>;
+}
+
+impl<'a> RenderingWorkloadSystems<'a> for WorkloadBuilder<'a> {
+    fn with_rendering_systems(self) -> WorkloadBuilder<'a> {
+        self
+            .with_system(system!(systems::draw_sprites))
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct Sprite {
-    pub renderable: &'static str,
-    pub draw_params: DrawParams,
-}
+pub struct Sprite(pub DrawCommand);
 
 impl Sprite {
-    pub fn new(renderable: &'static str, draw_params: DrawParams) -> Self {
-        Sprite {
-            renderable,
-            draw_params,
-        }
+    pub fn new(drawable: &'static str) -> Self {
+        Sprite(DrawCommand::new(drawable))
     }
 
-    //pub fn from_renderable(renderable: &'static str) -> Self {
-    //    Sprite {
-    //        renderable,
-    //        draw_params: DrawParams::new(),
-    //    }
-    //}
-}
-
-impl Renderable for Sprite {
-    fn draw(&mut self, transform: &Transform, context: &mut Context, renderables: &Renderables, _: EntityId) {
-        let texture = if let Some(texture) = renderables.lookup.get(self.renderable) {
-            texture
-        } else { return; };
-
-        let position = self.draw_params.position + Vec2::new(transform.x as f32, transform.y as f32);
-        let mut params = self.draw_params;
-        params.position = position;
-
-        texture.draw(context, params);
+    pub fn from_command(draw_command: DrawCommand) -> Self {
+        Sprite(draw_command)
     }
 }
 
-pub fn render_renderables<T: Renderable + Send + Sync + 'static>(data: (&Renderables, &mut Context), bodies: View<PhysicsBody>, physics_world: UniqueViewMut<PhysicsWorld>, mut ts: ViewMut<T>) {
-    let (renderables, context) = data;
-
-    for (id, (_, renderable)) in (&bodies, &mut ts).iter().with_id() {
-        let transform = physics_world.transform(id);
-        renderable.draw(transform, context, renderables, id);
-    }
-}
-
-pub struct Renderables {
+pub struct Drawables {
     pub lookup: HashMap<&'static str, Texture>,
 }
 
-impl Renderables {
+impl Drawables {
     pub fn new(ctx: &mut Context) -> tetra::Result<Self> {
         let mut map = HashMap::new();
 
@@ -88,7 +67,7 @@ impl Renderables {
             map.insert(key, value);
         }
 
-        Ok(Renderables {
+        Ok(Drawables {
             lookup: map,
         })
     }
