@@ -1,7 +1,9 @@
 use tetra::{
     graphics::{
+        self,
         Drawable,
         Color,
+        Camera,
     },
     Context,
     math::{
@@ -30,9 +32,13 @@ impl DrawBuffer {
         self.commands.push(command);
     }
 
-    pub fn flush(&mut self, ctx: &mut Context, drawables: &Drawables) {
+    pub fn flush<'cam, C: Into<Option<&'cam mut Camera>>>(&mut self, ctx: &mut Context, drawables: &Drawables, camera: C) {
         self.sort();
-        
+
+        if let Some(camera) = camera.into() {
+            camera.update();
+            graphics::set_transform_matrix(ctx, camera.as_matrix());
+        }
         for cmd in self.commands.iter_mut() {
             let drawable = drawables.lookup.get(cmd.drawable).unwrap();
             let params = DrawParams::new()
