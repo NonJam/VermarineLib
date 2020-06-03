@@ -293,33 +293,45 @@ impl PhysicsWorld {
     }
 
     pub(crate) fn update_overlapping_single(t1: &mut Transform, c1: &mut Collider, e1: EntityId, t2: &mut Transform, c2: &mut Collider, e2: EntityId, check_both: bool, resolve_collisions: bool) -> Option<Collision>{
-        let (collided, mtv) = sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape);
-        if collided {
-            let collision = Self::handle_collision(t1, c1, t2, c2, e2, mtv, resolve_collisions);
-            if check_both {
+        let mut result: Option<(bool, Option<Vec2<f64>>)> = None;
+        let mut collision = None;
+
+        if c1.collides_with & c2.collision_layer > 0 {
+            result = Some(sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape));
+            let (collided, mtv) = result.unwrap();
+            if collided {
+                collision = Some(
+                    Self::handle_collision(t1, c1, t2, c2, e2, mtv, resolve_collisions)
+                )
+            }
+        }
+
+        if c2.collides_with & c1.collision_layer > 0 && check_both {
+            if result.is_none() {
+                result = Some(sat::seperating_axis_test(t1, &c1.shape, t2, &c2.shape));
+            }
+            let (collided, mtv) = result.unwrap();
+            
+            if collided {
                 Self::handle_collision(t2, c2, t1, c1, e1, Some(-mtv.unwrap()), false);
             }
-            return collision;
         }
-        None
+        collision
     }
 
-    pub(crate) fn handle_collision(t1: &mut Transform, c1: &mut Collider, t2: &Transform, c2: &Collider, e2: EntityId, mtv: Option<Vec2<f64>>, resolve_collisions: bool) -> Option<Collision> {
-        if c1.collides_with & c2.collision_layer > 0 {
-            let collision_data = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
-                t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, e2, mtv.unwrap().normalized());
-    
-            c1.overlapping.push(collision_data.clone());
+    pub(crate) fn handle_collision(t1: &mut Transform, c1: &mut Collider, t2: &Transform, c2: &Collider, e2: EntityId, mtv: Option<Vec2<f64>>, resolve_collisions: bool) -> Collision {
+        let collision_data = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
+            t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, e2, mtv.unwrap().normalized());
 
-            if resolve_collisions {
-                let mtv = mtv.unwrap();
-                t1.x += mtv.x;
-                t1.y += mtv.y;
-            }
+        c1.overlapping.push(collision_data.clone());
 
-            return Some(collision_data);
+        if resolve_collisions {
+            let mtv = mtv.unwrap();
+            t1.x += mtv.x;
+            t1.y += mtv.y;
         }
-        None
+
+        collision_data
     }
 
     //

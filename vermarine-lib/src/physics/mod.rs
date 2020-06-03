@@ -429,8 +429,12 @@ mod tests {
 
     #[test]
     fn bug_reproduction() {
-        let world = World::new();
-        super::physics_workload(&world);
+        let mut world = World::new();
+        
+        world
+            .add_physics_workload(50.0, 50.0)
+            .with_physics_systems()
+            .build();
 
         // Setup
         let e1 = world.run(|
@@ -501,8 +505,12 @@ mod tests {
 
     #[test]
     fn bug_two() {
-        let world = World::new();
-        super::physics_workload(&world);
+        let mut world = World::new();
+
+        world
+            .add_physics_workload(50.0, 50.0)
+            .with_physics_systems()
+            .build();
 
         // Setup
         let e1 = world.run(|
