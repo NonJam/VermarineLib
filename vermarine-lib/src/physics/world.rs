@@ -13,7 +13,7 @@ pub struct PhysicsWorld {
 }
 
 impl PhysicsWorld {
-    pub fn new() -> Self {
+    pub fn new(bucket_width: f64, bucket_height: f64) -> Self {
         PhysicsWorld {
             transforms: vec![],
             colliders: vec![],
@@ -21,7 +21,7 @@ impl PhysicsWorld {
 
             sparse: vec![],
 
-            broadphase: SpatialBuckets::new(50.0, 50.0),
+            broadphase: SpatialBuckets::new(bucket_height, bucket_width),
         }
     }
 

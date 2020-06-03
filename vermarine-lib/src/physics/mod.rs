@@ -9,12 +9,12 @@ use spatialhash::*;
 
 /// Dummy trait to allow adding a method to World
 pub trait PhysicsWorkloadCreator {
-    fn add_physics_workload(&mut self) -> WorkloadBuilder;
+    fn add_physics_workload(&mut self, bucket_width: f64, bucket_height: f64) -> WorkloadBuilder;
 }
 
 impl PhysicsWorkloadCreator for shipyard::World {
-    fn add_physics_workload(&mut self) -> WorkloadBuilder {
-        self.add_unique(PhysicsWorld::new());
+    fn add_physics_workload(&mut self, bucket_width: f64, bucket_height: f64) -> WorkloadBuilder {
+        self.add_unique(PhysicsWorld::new(bucket_width, bucket_height));
         self.borrow::<ViewMut<PhysicsBody>>().update_pack();
         self.add_workload("Physics")
     }
