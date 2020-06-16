@@ -6,6 +6,7 @@ use tetra::{
     graphics::{
         Texture,
         DrawParams,
+        Camera,
     },
     Context,
 };
@@ -18,11 +19,12 @@ use std::path::Path;
 
 /// Dummy trait to allow adding a method to World
 pub trait RenderingWorkloadCreator {
-    fn add_rendering_workload(&mut self) -> WorkloadBuilder;
+    fn add_rendering_workload(&mut self, ctx: &mut Context) -> WorkloadBuilder;
 }
 
 impl RenderingWorkloadCreator for World {
-    fn add_rendering_workload(&mut self) -> WorkloadBuilder {
+    fn add_rendering_workload(&mut self, ctx: &mut Context) -> WorkloadBuilder {
+        self.add_unique(Camera::with_window_size(ctx));
         self.add_unique(DrawBuffer::new());
         self.add_workload("Rendering")
     }

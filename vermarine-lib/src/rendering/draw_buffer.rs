@@ -16,6 +16,10 @@ use super::{
     Drawables,
 };
 use std::cmp::Ordering;
+use shipyard::{
+    self,
+    *,
+};
 
 pub struct DrawBuffer {
     commands: Vec<DrawCommand>,
@@ -32,14 +36,15 @@ impl DrawBuffer {
         self.commands.push(command);
     }
 
-    pub fn flush<'cam, C: Into<Option<&'cam mut Camera>>>(&mut self, ctx: &mut Context, drawables: &Drawables, camera: C) {
-        self.sort();
+    pub fn flush(data: (&mut Context, &Drawables), mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>) {
+        let (ctx, drawables) = data;
 
-        if let Some(camera) = camera.into() {
-            camera.update();
-            graphics::set_transform_matrix(ctx, camera.as_matrix());
-        }
-        for cmd in self.commands.iter_mut() {
+        draw_buffer.sort();
+
+        camera.update();
+        graphics::set_transform_matrix(ctx, camera.as_matrix());
+        
+        for cmd in draw_buffer.commands.iter_mut() {
             let drawable = drawables.lookup.get(cmd.drawable).unwrap();
             let params = DrawParams::new()
                 .position(Vec2::new(cmd.position.x, cmd.position.y))
@@ -51,7 +56,7 @@ impl DrawBuffer {
             drawable.draw(ctx, params);
         }
 
-        self.commands.clear();
+        draw_buffer.commands.clear();
     }
 
     pub fn debug_command_buffer(&self) {
