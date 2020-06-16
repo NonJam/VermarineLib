@@ -81,6 +81,7 @@ impl PhysicsWorld {
         entities: &mut EntitiesViewMut, 
         bodies: &mut ViewMut<PhysicsBody>, 
         id: EntityId, 
+        transforms: &mut ViewMut<Transform>,
         transform: Transform, 
         collider: CollisionBody
     ) {
@@ -122,6 +123,7 @@ impl PhysicsWorld {
         }
 
         entities.add_component(bodies, PhysicsBody, id);
+        entities.add_component(transforms, transform, id);
     }
 
     //

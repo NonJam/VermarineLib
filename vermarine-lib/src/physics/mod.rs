@@ -28,16 +28,15 @@ pub trait PhysicsWorkloadSystems<'a> {
 
 impl<'a> PhysicsWorkloadSystems<'a> for WorkloadBuilder<'a> {
     fn with_physics_systems(self) -> WorkloadBuilder<'a> {
-        self
+        self.with_system(system!(sync_transforms))
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Transform {
-    pub x: f64,
-    pub y: f64,
-}
-
+pub fn sync_transforms(mut transforms: ViewMut<Transform>, bodies: View<PhysicsBody>, world: UniqueView<PhysicsWorld>) {
+    for (id, (transform, _)) in (&mut transforms, &bodies).iter().with_id() {
+        let new_t = *world.transform(id);
+        *transform = new_t;
+    }
 }
 
 #[derive(Default)]
