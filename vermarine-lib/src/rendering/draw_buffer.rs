@@ -32,10 +32,6 @@ impl DrawBuffer {
         }
     }
 
-    pub fn draw(&mut self, command: DrawCommand) {
-        self.commands.push(command);
-    }
-
     pub fn flush(data: (&mut Context, &Drawables), mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>) {
         let (ctx, drawables) = data;
 
@@ -71,6 +67,10 @@ impl DrawBuffer {
         }
         output = format!("{}\n\n\n\n END \n\n\n\n", output);
         println!("{}", output);
+    }
+
+    pub fn draw(&mut self, command: DrawCommand) {
+        self.commands.push(command);
     }
 
     /// This method is called automatically at the start of flush() 
