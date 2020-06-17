@@ -46,12 +46,17 @@ impl DrawBuffer {
         
         for cmd in draw_buffer.commands.iter_mut() {
             let drawable = drawables.lookup.get(cmd.drawable).unwrap();
-            let params = DrawParams::new()
+
+            let mut params = DrawParams::new()
                 .position(Vec2::new(cmd.position.x, cmd.position.y))
                 .scale(cmd.scale)
                 .origin(cmd.origin)
                 .rotation(cmd.rotation)
                 .color(cmd.color);
+
+            if cmd.draw_iso == true {
+                params.position.y -= cmd.position.z;
+            }
 
             drawable.draw(ctx, params);
         }
@@ -123,6 +128,9 @@ pub struct DrawCommand {
 
     /// A color to multiply the graphic by. Defaults to `Color::WHITE`.
     pub color: Color,
+
+    /// Flag to determine whether to use the Z component of position as an offset for the Y axis after sorting. 
+    pub draw_iso: bool,
 }
 
 impl DrawCommand {
@@ -135,6 +143,7 @@ impl DrawCommand {
             origin: Vec2::default(),
             rotation: 0.0,
             color: Color::WHITE,
+            draw_iso: false,
         }
     }
 
@@ -171,6 +180,12 @@ impl DrawCommand {
     /// Sets the color to multiply the graphic by.
     pub fn color(mut self, color: Color) -> DrawCommand {
         self.color = color;
+        self
+    }
+
+    /// Sets the draw_iso flag
+    pub fn draw_iso(mut self, draw_iso: bool) -> DrawCommand {
+        self.draw_iso = draw_iso;
         self
     }
 }
