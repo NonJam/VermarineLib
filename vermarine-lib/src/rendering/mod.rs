@@ -26,6 +26,7 @@ impl RenderingWorkloadCreator for World {
     fn add_rendering_workload(&mut self, ctx: &mut Context) -> WorkloadBuilder {
         self.add_unique(Camera::with_window_size(ctx));
         self.add_unique(DrawBuffer::new());
+        self.add_unique_non_send_sync(Drawables::new(ctx));
         self.add_workload("Rendering")
     }
 }
@@ -46,7 +47,7 @@ impl<'a> RenderingWorkloadSystems<'a> for WorkloadBuilder<'a> {
 pub struct Sprite(pub DrawCommand);
 
 impl Sprite {
-    pub fn new(drawable: &'static str) -> Self {
+    pub fn new(drawable: u64) -> Self {
         Sprite(DrawCommand::new(drawable))
     }
 
@@ -56,22 +57,29 @@ impl Sprite {
 }
 
 pub struct Drawables {
-    pub lookup: HashMap<&'static str, Texture>,
+    pub alias: HashMap<&'static str, u64>,
+    pub lookup: Vec<Texture>,
 }
 
 impl Drawables {
-    pub fn new(ctx: &mut Context) -> tetra::Result<Self> {
-        let mut map = HashMap::new();
+    pub fn new(ctx: &mut Context) -> Drawables {
+        let mut found = 0;
+        let mut alias = HashMap::new();
+        let mut lookup = vec![];
 
-        let pngs = get_textures(ctx, "assets/")?;
+        let pngs = get_textures(ctx, "assets/")
+            .expect("Could not find assets directory");
 
         for (key, value) in pngs.into_iter() {
-            map.insert(key, value);
+            alias.insert(key, found);
+            lookup.push(value);
+            found += 1;
         }
 
-        Ok(Drawables {
-            lookup: map,
-        })
+        Drawables {
+            alias,
+            lookup,
+        }
     }
 }
 

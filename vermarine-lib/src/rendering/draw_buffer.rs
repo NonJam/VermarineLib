@@ -32,16 +32,15 @@ impl DrawBuffer {
         }
     }
 
-    pub fn flush(data: (&mut Context, &Drawables), mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>) {
-        let (ctx, drawables) = data;
-
+    pub fn flush(ctx: &mut Context, mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>, drawables: NonSendSync<UniqueViewMut<Drawables>>) {
         draw_buffer.sort();
 
         camera.update();
         graphics::set_transform_matrix(ctx, camera.as_matrix());
         
         for cmd in draw_buffer.commands.iter_mut() {
-            let drawable = drawables.lookup.get(cmd.drawable).unwrap();
+            let drawable = drawables.lookup.get(cmd.drawable as usize)
+                .expect("Invalid texture ID was issued to a draw command");
 
             let mut params = DrawParams::new()
                 .position(Vec2::new(cmd.position.x, cmd.position.y))
@@ -100,7 +99,8 @@ impl DrawBuffer {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct DrawCommand {
     /// The ID for a drawable entry in ``rendering::Renderables``
-    pub drawable: &'static str,
+    /// Can be obtained by using the Alias hashmap
+    pub drawable: u64,
 
     /// The position that the drawable should be drawn at. Defaults to `(0.0, 0.0, 0.0)`.
     /// Z-axis is used for draw order sorting and in the case of isometric is subtracted from the y-axis when drawn
@@ -134,7 +134,7 @@ pub struct DrawCommand {
 }
 
 impl DrawCommand {
-    pub fn new(drawable: &'static str) -> Self {
+    pub fn new(drawable: u64) -> Self {
         DrawCommand {
             drawable,
             position: Vec3::default(),
