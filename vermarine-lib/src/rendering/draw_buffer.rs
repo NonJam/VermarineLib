@@ -21,58 +21,21 @@ use shipyard::{
     *,
 };
 
-pub struct DrawBuffer {
+struct DrawCommandPool {
     commands: Vec<DrawCommand>,
+    is_sorted: bool,
+    finished: bool,
 }
 
-impl DrawBuffer {
+impl DrawCommandPool {
     pub fn new() -> Self {
-        DrawBuffer {
+        DrawCommandPool {
             commands: vec![],
+            is_sorted: false,
+            finished: false,
         }
     }
 
-    pub fn flush(ctx: &mut Context, mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>, drawables: NonSendSync<UniqueViewMut<Drawables>>) {
-        draw_buffer.sort();
-
-        camera.update();
-        graphics::set_transform_matrix(ctx, camera.as_matrix());
-        
-        for cmd in draw_buffer.commands.iter_mut() {
-            let drawable = drawables.lookup.get(cmd.drawable as usize)
-                .expect("Invalid texture ID was issued to a draw command");
-
-            let mut params = DrawParams::new()
-                .position(Vec2::new(cmd.position.x, cmd.position.y))
-                .scale(cmd.scale)
-                .origin(cmd.origin)
-                .rotation(cmd.rotation)
-                .color(cmd.color);
-
-            if cmd.draw_iso == true {
-                params.position.y -= cmd.position.z;
-            }
-
-            drawable.draw(ctx, params);
-        }
-
-        draw_buffer.commands.clear();
-    }
-
-    pub fn debug_command_buffer(&self) {
-        let mut output: String = "\n\n\n\n\n START: \n\n".into();
-        for elem in self.commands.iter() {
-            output = format!("{}\n(x: {}, y: {}, z: {}, dl: {})", output, elem.position.x, elem.position.y, elem.position.z, elem.draw_layer);
-        }
-        output = format!("{}\n\n\n\n END \n\n\n\n", output);
-        println!("{}", output);
-    }
-
-    pub fn draw(&mut self, command: DrawCommand) {
-        self.commands.push(command);
-    }
-
-    /// This method is called automatically at the start of flush() 
     pub fn sort(&mut self) {
         self.commands.sort_by(|a, b| {
             if a.position.z == b.position.z {
@@ -93,6 +56,70 @@ impl DrawBuffer {
                 a.position.z.partial_cmp(&b.position.z).unwrap()
             }
         });
+    }
+}
+
+pub struct DrawBuffer {
+    buffers: Vec<DrawCommandPool>,
+}
+
+impl DrawBuffer {
+    pub fn new() -> Self {
+        DrawBuffer {
+            buffers: vec![DrawCommandPool::new()],
+        }
+    }
+
+    /// Sequentially starting from the first DrawCommandPool issues all the buffered draw commands
+    pub fn flush(ctx: &mut Context, mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>, drawables: NonSendSync<UniqueViewMut<Drawables>>) {
+        camera.update();
+        graphics::set_transform_matrix(ctx, camera.as_matrix());
+
+        for buffer in draw_buffer.buffers.iter_mut() {
+            if !buffer.is_sorted {
+                buffer.sort();
+            }
+
+            for cmd in buffer.commands.iter_mut() {
+                let drawable = drawables.lookup.get(cmd.drawable as usize)
+                    .expect("Invalid texture ID was issued to a draw command");
+    
+                let mut params = DrawParams::new()
+                    .position(Vec2::new(cmd.position.x, cmd.position.y))
+                    .scale(cmd.scale)
+                    .origin(cmd.origin)
+                    .rotation(cmd.rotation)
+                    .color(cmd.color);
+    
+                if cmd.draw_iso == true {
+                    params.position.y -= cmd.position.z;
+                }
+    
+                drawable.draw(ctx, params);
+            }
+        }
+        
+        draw_buffer.buffers.clear();
+    }
+
+    /// Pushes a draw command to the newest command pool
+    pub fn draw(&mut self, command: DrawCommand) {
+        if self.buffers.len() == 0 || self.buffers.last().unwrap().finished {
+            self.new_command_pool(false);
+        }
+
+        self.buffers.last_mut().unwrap().commands.push(command);
+    }
+
+    /// Creates a command pool
+    pub fn new_command_pool(&mut self, sort: bool) {
+        self.buffers.push(DrawCommandPool { is_sorted: sort, ..DrawCommandPool::new() });
+    }
+
+    pub fn end_command_pool(&mut self) {
+        if let Some(buffer) = self.buffers.last_mut() {
+            buffer.finished = true;
+        } 
     }
 }
 
