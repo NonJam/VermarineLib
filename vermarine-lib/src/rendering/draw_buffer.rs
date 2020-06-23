@@ -21,8 +21,8 @@ use shipyard::{
     *,
 };
 
-struct DrawCommandPool {
-    commands: Vec<DrawCommand>,
+pub struct DrawCommandPool {
+    pub commands: Vec<DrawCommand>,
     is_sorted: bool,
     finished: bool,
 }
@@ -120,6 +120,11 @@ impl DrawBuffer {
         if let Some(buffer) = self.buffers.last_mut() {
             buffer.finished = true;
         } 
+    }
+
+    /// Panics if there isn't a command pool
+    pub fn get_command_pool(&mut self) -> &mut DrawCommandPool {
+        self.buffers.last_mut().unwrap()
     }
 }
 
