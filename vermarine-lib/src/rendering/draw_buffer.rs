@@ -9,6 +9,7 @@ use tetra::{
     math::{
         Vec2,
         Vec3,
+        Mat4,
     },
 };
 use super::{
@@ -60,20 +61,23 @@ impl DrawCommandPool {
 }
 
 pub struct DrawBuffer {
+    pub transform_mat: Mat4<f32>,
     buffers: Vec<DrawCommandPool>,
 }
 
 impl DrawBuffer {
     pub fn new() -> Self {
         DrawBuffer {
+            transform_mat: Mat4::identity(),
             buffers: vec![DrawCommandPool::new()],
         }
     }
 
     /// Sequentially starting from the first DrawCommandPool issues all the buffered draw commands
     pub fn flush(ctx: &mut Context, mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>, drawables: NonSendSync<UniqueViewMut<Drawables>>) {
-        camera.update();
-        graphics::set_transform_matrix(ctx, camera.as_matrix());
+        //camera.update();
+        //graphics::set_transform_matrix(ctx, camera.as_matrix());
+        graphics::set_transform_matrix(ctx, draw_buffer.transform_mat);
 
         for buffer in draw_buffer.buffers.iter_mut() {
             if !buffer.is_sorted {
