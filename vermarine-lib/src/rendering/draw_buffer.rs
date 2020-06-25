@@ -3,7 +3,6 @@ use tetra::{
         self,
         Drawable,
         Color,
-        Camera,
     },
     Context,
     math::{
@@ -74,7 +73,7 @@ impl DrawBuffer {
     }
 
     /// Sequentially starting from the first DrawCommandPool issues all the buffered draw commands
-    pub fn flush(ctx: &mut Context, mut draw_buffer: UniqueViewMut<DrawBuffer>, mut camera: UniqueViewMut<Camera>, drawables: NonSendSync<UniqueViewMut<Drawables>>) {
+    pub fn flush(ctx: &mut Context, mut draw_buffer: UniqueViewMut<DrawBuffer>, drawables: NonSendSync<UniqueViewMut<Drawables>>) {
         //camera.update();
         //graphics::set_transform_matrix(ctx, camera.as_matrix());
         graphics::set_transform_matrix(ctx, draw_buffer.transform_mat);
