@@ -1,18 +1,10 @@
 use crate::tetra::math::Vec2;
+//
+//
 
-// Hex tile data
-#[derive(Clone, Copy, Debug)]
-pub struct HexTileData {
-    pub ground_height: u8,
-    pub wall_height: u8,
-}
-
-impl HexTileData {
-    pub fn new(height: u8) -> HexTileData {
-        HexTileData {
-            ground_height: height,
-            wall_height: height,
-        }
+pub trait TileData {
+    fn height(&self) -> u8 {
+        0
     }
 }
 
@@ -48,13 +40,13 @@ impl ChunkPos {
 
 pub const CHUNK_WIDTH: usize = 16;
 pub const CHUNK_HEIGHT: usize = 16;
-pub struct HexChunk {
-    tiles: [HexTileData; CHUNK_WIDTH * CHUNK_HEIGHT],
+pub struct HexChunk<T: TileData> {
+    tiles: [T; CHUNK_WIDTH * CHUNK_HEIGHT],
     pos: ChunkPos,
 }
 
-impl HexChunk {
-    pub fn new(tiles: [HexTileData; CHUNK_WIDTH * CHUNK_HEIGHT], q: i32, r: i32) -> HexChunk {
+impl<T: TileData> HexChunk<T> {
+    pub fn new(tiles: [T; CHUNK_WIDTH * CHUNK_HEIGHT], q: i32, r: i32) -> HexChunk<T> {
         HexChunk {
             tiles,
             pos: ChunkPos::new(q, r),
@@ -65,7 +57,7 @@ impl HexChunk {
         self.pos.sparse_index()
     }
 
-    pub fn get_tile(&self, hex: &Hex) -> &HexTileData {
+    pub fn get_tile(&self, hex: &Hex) -> &T {
         let axial = hex.to_axial();
         
         if axial.q < 0 || (axial.q as usize) >= CHUNK_WIDTH {
@@ -79,7 +71,7 @@ impl HexChunk {
         &self.tiles[q + r * CHUNK_WIDTH]
     }
 
-    pub fn get_tile_mut(&mut self, hex: &Hex) -> &mut HexTileData {
+    pub fn get_tile_mut(&mut self, hex: &Hex) -> &mut T {
         let axial = hex.to_axial();
         
         if axial.q < 0 || (axial.q as usize) >= CHUNK_WIDTH {
@@ -97,8 +89,8 @@ impl HexChunk {
 //
 // Hex map
 
-pub struct HexMap {
-    chunks: Vec<HexChunk>,
+pub struct HexMap<T: TileData> {
+    chunks: Vec<HexChunk<T>>,
     chunks_sparse: Vec<Vec<Option<usize>>>,
 
     pub position: Vec2<f32>,
@@ -113,7 +105,7 @@ pub struct HexMap {
     pub wall_vert_offset: f32,
 }
 
-impl HexMap {
+impl<T: TileData> HexMap<T> {
     pub fn new(
         hex_width: f32,
         hex_height: f32,
@@ -122,15 +114,6 @@ impl HexMap {
         wall_vert_offset: f32,
         wall_vert_step: f32,
     ) -> Self {
-        // Offset hexmap to center it on screen
-        /*let tile_space_bounds = Vec2::new(
-            ((height - 1) as f32 / 2.) + width as f32,
-            height as f32,
-        );
-        let mut world_space_bounds = tile_space_bounds * Vec2::new(hex_width, hex_vert_step);
-        world_space_bounds.y += hex_height - hex_vert_step;        
-        let position = world_space_bounds / -2.;*/
-
         HexMap {
             chunks: vec![],
             chunks_sparse: vec![], 
@@ -187,7 +170,7 @@ impl HexMap {
         (chunk_pos, hex_pos)
     }
 
-    pub fn insert_chunk(&mut self, chunk: HexChunk) {
+    pub fn insert_chunk(&mut self, chunk: HexChunk<T>) {
         let (q, r) = chunk.sparse_index();
         let chunk_index = self.chunks.len();
         self.chunks.push(chunk);
@@ -261,12 +244,12 @@ impl HexMap {
                 continue;
             };
 
-            if tile.wall_height != height {
+            if tile.height() != height {
                 continue;
             }
 
-            if tallest_height.is_none() || tile.wall_height > tallest_height.unwrap().0 {
-                tallest_height = Some((tile.wall_height, axial_hex));
+            if tallest_height.is_none() || tile.height() > tallest_height.unwrap().0 {
+                tallest_height = Some((tile.height(), axial_hex));
             }
         }
 
@@ -293,11 +276,11 @@ impl HexMap {
         )
     }
 
-    pub fn get_tile(&self, hex: &Hex) -> &HexTileData {
+    pub fn get_tile(&self, hex: &Hex) -> &T {
         self.try_get_tile(hex).unwrap()
     }
 
-    pub fn try_get_tile(&self, hex: &Hex) -> Option<&HexTileData> {
+    pub fn try_get_tile(&self, hex: &Hex) -> Option<&T> {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
 
         if self.does_chunk_exist(chunk_pos) {
@@ -308,11 +291,11 @@ impl HexMap {
         None
     }
     
-    pub fn get_tile_mut(&mut self, hex: &Hex) -> &mut HexTileData {
+    pub fn get_tile_mut(&mut self, hex: &Hex) -> &mut T {
         self.try_get_tile_mut(hex).unwrap()
     } 
 
-    pub fn try_get_tile_mut(&mut self, hex: &Hex) -> Option<&mut HexTileData> {
+    pub fn try_get_tile_mut(&mut self, hex: &Hex) -> Option<&mut T> {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
 
         if self.does_chunk_exist(chunk_pos) {
