@@ -210,7 +210,7 @@ impl<T: TileData> HexMap<T> {
         // R can be 1 so we can simplify to:
         // FLOOR_VERT_STEP = X * 1.5
         // X = FLOOR_VERT_STEP / 1.5
-        let size_y = 18.66666666666666666;
+        let size_y = 18.666666;
 
         let pos = Vec2::new(
             pos.x / size_x,
@@ -234,7 +234,7 @@ impl<T: TileData> HexMap<T> {
         for height in 0..=self.tallest {
             let height_offset = height as f32 * self.hex_depth_step;
 
-            let axial_hex = self.pixel_to_hex_raw(pos.clone(), height_offset);
+            let axial_hex = self.pixel_to_hex_raw(pos, height_offset);
             let cube_hex = axial_hex.to_fractional_cube();
             let axial_hex = cube_hex.to_cube().to_axial();
     
@@ -266,7 +266,7 @@ impl<T: TileData> HexMap<T> {
         // R can be 1 so we can simplify to:
         // FLOOR_VERT_STEP = X * 1.5
         // X = FLOOR_VERT_STEP / 1.5
-        let size_y = 18.66666666666666666;
+        let size_y = 18.666666;
 
         let x = size_x * (f32::sqrt(3.0) * hex.q as f32 + f32::sqrt(3.0) / 2.0 * hex.r as f32);
         let y = size_y * (3.0 / 2.0 * hex.r as f32);

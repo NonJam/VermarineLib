@@ -87,11 +87,7 @@ impl PhysicsWorld {
     ) {
         let sparse_index = id.uindex();
 
-        {
-            let transform = &transform.clone();
-            let aabb = &collider.aabb.clone();
-            self.broadphase.insert(id, transform, aabb);
-        }
+        self.broadphase.insert(id, &transform, &collider.aabb);
 
         // Padding 
         if sparse_index >= self.sparse.len() {
@@ -294,6 +290,7 @@ impl PhysicsWorld {
         collisions
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn update_overlapping_single(t1: &mut Transform, c1: &mut Collider, e1: EntityId, t2: &mut Transform, c2: &mut Collider, e2: EntityId, check_both: bool, resolve_collisions: bool) -> Option<Collision>{
         let mut result: Option<(bool, Option<Vec2<f64>>)> = None;
         let mut collision = None;
@@ -322,8 +319,8 @@ impl PhysicsWorld {
     }
 
     pub(crate) fn handle_collision(t1: &mut Transform, c1: &mut Collider, t2: &Transform, c2: &Collider, e2: EntityId, mtv: Option<Vec2<f64>>, resolve_collisions: bool) -> Collision {
-        let collision_data = Collision::new(t1.clone(), c1.shape.clone(), c1.collides_with, c1.collision_layer,
-            t2.clone(), c2.shape.clone(), c2.collides_with, c2.collision_layer, e2, mtv.unwrap().normalized());
+        let collision_data = Collision::new(*t1, c1.shape.clone(), c1.collides_with, c1.collision_layer,
+            *t2, c2.shape.clone(), c2.collides_with, c2.collision_layer, e2, mtv.unwrap().normalized());
 
         c1.overlapping.push(collision_data.clone());
 
@@ -379,10 +376,11 @@ impl PhysicsWorld {
         let index = self.index_from_body(body);
         (self.transforms.get(index).unwrap(), self.colliders.get(index).unwrap())
     }
+    #[allow(clippy::type_complexity)]
     pub(crate) fn all_parts_mut(&mut self) -> (&mut [Transform], &mut [CollisionBody], &mut [EntityId], &mut [Option<usize>]) {
         (&mut self.transforms, &mut self.colliders, &mut self.owners, &mut self.sparse)
     }
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::type_complexity)]
     pub(crate) fn all_parts(&self) -> (&[Transform], &[CollisionBody], &[EntityId], &[Option<usize>]) {
         (&self.transforms, &self.colliders, &self.owners, &self.sparse,)
     }

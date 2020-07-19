@@ -59,6 +59,7 @@ pub struct Collision {
 }
 
 impl Collision {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(transform1: Transform, shape1: CollisionShape, collides_with1: u64, collision_layer1: u64,
         transform2: Transform, shape2: CollisionShape, collides_with2: u64, collision_layer2: u64, entity2: EntityId, normal: Vec2<f64>) -> Self {
         Collision {
@@ -242,8 +243,8 @@ impl Collider {
     pub fn from_collider(collider: &Collider) -> Self {
         Collider {
             shape: collider.shape.clone(),
-            collision_layer: collider.collision_layer.clone(),
-            collides_with: collider.collides_with.clone(),
+            collision_layer: collider.collision_layer,
+            collides_with: collider.collides_with,
 
             overlapping: vec![],
         }
@@ -269,10 +270,10 @@ impl AABB {
     }
 
     pub fn from_collider(collider: &Collider) -> Self {
-        Self::from_colliders(&vec![collider.clone()])
+        Self::from_colliders(&[collider.clone()])
     }
 
-    pub fn from_colliders(colliders: &Vec<Collider>) -> Self {
+    pub fn from_colliders(colliders: &[Collider]) -> Self {
         let mut xmin = None;
         let mut xmax = None;
         let mut ymin = None;
@@ -321,13 +322,12 @@ impl AABB {
         let ymin = ymin.unwrap();
         let ymax = ymax.unwrap();
 
-        let aabb = AABB {
+        AABB {
             dx: if xmin < 0.0 { xmin } else { 0.0 },
             dy: if ymin < 0.0 { ymin } else { 0.0 },
             width: xmax - xmin,
             height: ymax - ymin,
-        };
-        aabb
+        }
     }
 }
 

@@ -74,17 +74,12 @@ impl Projection {
     }
 
     pub fn overlaps(&self, other: &Projection) -> bool {
-        if self.min >= other.min && self.min <= other.max {
-            return true;
-        } 
-        else if self.max >= other.min && self.max <= other.max {
-            return true;
-        } 
-        else if self.max >= other.max && self.min <= other.min {
+        if (self.min >= other.min && self.min <= other.max) || 
+            (self.max >= other.min && self.max <= other.max) || 
+            (self.max >= other.max && self.min <= other.min) {
             return true;
         }
-
-        return false;
+        false
     }
 
     pub fn get_overlap(&self, other: &Projection) -> f64 {

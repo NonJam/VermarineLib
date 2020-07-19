@@ -21,6 +21,7 @@ use shipyard::{
     *,
 };
 
+#[derive(Default)]
 pub struct DrawCommandPool {
     pub commands: Vec<DrawCommand>,
     is_sorted: bool,
@@ -36,6 +37,7 @@ impl DrawCommandPool {
         }
     }
 
+    #[allow(clippy::float_cmp)]
     pub fn sort(&mut self) {
         self.commands.sort_by(|a, b| {
             if a.position.z == b.position.z {
@@ -59,6 +61,7 @@ impl DrawCommandPool {
     }
 }
 
+#[derive(Default)]
 pub struct DrawBuffer {
     pub transform_mat: Mat4<f32>,
     buffers: Vec<DrawCommandPool>,
@@ -94,7 +97,7 @@ impl DrawBuffer {
                     .rotation(cmd.rotation)
                     .color(cmd.color);
     
-                if cmd.draw_iso == true {
+                if cmd.draw_iso {
                     params.position.y -= cmd.position.z;
                 }
     
@@ -107,7 +110,7 @@ impl DrawBuffer {
 
     /// Pushes a draw command to the newest command pool
     pub fn draw(&mut self, command: DrawCommand) {
-        if self.buffers.len() == 0 || self.buffers.last().unwrap().finished {
+        if self.buffers.is_empty() || self.buffers.last().unwrap().finished {
             self.new_command_pool(false);
         }
 

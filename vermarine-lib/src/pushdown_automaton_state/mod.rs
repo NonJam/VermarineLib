@@ -44,7 +44,7 @@ impl<T> PushdownAutomaton<T> {
 
         Ok(PushdownAutomaton {
             states: vec![state],
-            resource: resource,
+            resource,
         })
     }
 

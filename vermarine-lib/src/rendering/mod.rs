@@ -63,17 +63,15 @@ pub struct Drawables {
 
 impl Drawables {
     pub fn new(ctx: &mut Context) -> tetra::Result<Drawables> {
-        let mut found = 0;
-        let mut alias = HashMap::new();
+        let mut alias = HashMap::<&'static str, u64>::new();
         let mut lookup = vec![];
 
         let pngs = get_textures(ctx, "assets/")
             .expect("Couldn't find assets directory");
 
-        for (key, value) in pngs.into_iter() {
-            alias.insert(key, found);
+        for (found, (key, value)) in pngs.into_iter().enumerate() {
+            alias.insert(key, found as u64);
             lookup.push(value);
-            found += 1;
         }
 
         Ok(Drawables {
@@ -101,9 +99,7 @@ pub fn get_textures<P: AsRef<Path>>(ctx: &mut Context, dir: P) -> tetra::Result<
                         fn to_str(string: String) -> &'static str {
                             Box::leak(string.into_boxed_str())
                         }
-                        let foo = to_str(stem);
-
-                        found.push((foo, texture?));
+                        found.push((to_str(stem), texture?));
                     }
                 }
             }

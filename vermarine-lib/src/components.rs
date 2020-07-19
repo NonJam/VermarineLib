@@ -18,7 +18,6 @@ impl Transform {
         Transform {
             x,
             y,
-            ..Transform::default()
         }
     }
 

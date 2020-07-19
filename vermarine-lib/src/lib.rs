@@ -1,3 +1,5 @@
+#[allow(clippy::reversed_empty_ranges)]
+
 pub mod physics;
 pub mod rendering;
 pub mod components;
