@@ -3,6 +3,7 @@ use tetra::{
         self,
         Drawable,
         Color,
+        Rectangle,
     },
     Context,
     math::{
@@ -97,6 +98,8 @@ impl DrawBuffer {
                     .rotation(cmd.rotation)
                     .color(cmd.color);
     
+                params.clip = cmd.clip;
+                
                 if cmd.draw_iso {
                     params.position.y -= cmd.position.z;
                 }
@@ -169,6 +172,11 @@ pub struct DrawCommand {
 
     /// Flag to determine whether to use the Z component of position as an offset for the Y axis after sorting. 
     pub draw_iso: bool,
+
+    /// A sub-region of the graphic to draw. Defaults to `None`, which means the the full graphic will be drawn.
+    ///
+    /// This is useful if you're using spritesheets (which you should be, if you want good performance!).
+    pub clip: Option<Rectangle>,
 }
 
 impl DrawCommand {
@@ -182,6 +190,7 @@ impl DrawCommand {
             rotation: 0.0,
             color: Color::WHITE,
             draw_iso: false,
+            clip: None,
         }
     }
 
@@ -224,6 +233,12 @@ impl DrawCommand {
     /// Sets the draw_iso flag
     pub fn draw_iso(mut self, draw_iso: bool) -> DrawCommand {
         self.draw_iso = draw_iso;
+        self
+    }
+
+    /// Sets the region of the graphic to draw.
+    pub fn clip(mut self, clip: Rectangle) -> DrawCommand {
+        self.clip = Some(clip);
         self
     }
 }

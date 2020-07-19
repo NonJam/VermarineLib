@@ -10,3 +10,5 @@ edition = "2018"
 shipyard = { path = "../shipyard", features = ["non_send", "non_sync"] }
 tetra = { path = "../tetra" }
 rand = "0.7"
+none-array = "1.0"
+

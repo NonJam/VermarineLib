@@ -1,15 +1,4 @@
 use crate::tetra::math::Vec2;
-//
-//
-
-pub trait TileData {
-    fn height(&self) -> u8 {
-        0
-    }
-}
-
-//
-//
 
 #[derive(Copy, Clone, Debug)]
 pub struct ChunkPos {
@@ -40,13 +29,14 @@ impl ChunkPos {
 
 pub const CHUNK_WIDTH: usize = 16;
 pub const CHUNK_HEIGHT: usize = 16;
-pub struct HexChunk<T: TileData> {
-    tiles: [T; CHUNK_WIDTH * CHUNK_HEIGHT],
+pub const CHUNK_TOTAL: usize = CHUNK_WIDTH * CHUNK_HEIGHT;
+pub struct HexChunk<T> {
+    tiles: [Option<T>; CHUNK_WIDTH * CHUNK_HEIGHT],
     pos: ChunkPos,
 }
 
-impl<T: TileData> HexChunk<T> {
-    pub fn new(tiles: [T; CHUNK_WIDTH * CHUNK_HEIGHT], q: i32, r: i32) -> HexChunk<T> {
+impl<T> HexChunk<T> {
+    pub fn new(tiles: [Option<T>; CHUNK_WIDTH * CHUNK_HEIGHT], q: i32, r: i32) -> HexChunk<T> {
         HexChunk {
             tiles,
             pos: ChunkPos::new(q, r),
@@ -57,7 +47,7 @@ impl<T: TileData> HexChunk<T> {
         self.pos.sparse_index()
     }
 
-    pub fn get_tile(&self, hex: &Hex) -> &T {
+    pub fn set_tile(&mut self, hex: &Hex, tile: T) {
         let axial = hex.to_axial();
         
         if axial.q < 0 || (axial.q as usize) >= CHUNK_WIDTH {
@@ -68,10 +58,10 @@ impl<T: TileData> HexChunk<T> {
         }
 
         let (q, r) = (axial.q as usize, axial.r as usize);
-        &self.tiles[q + r * CHUNK_WIDTH]
+        self.tiles[q + r * CHUNK_WIDTH] = Some(tile);
     }
 
-    pub fn get_tile_mut(&mut self, hex: &Hex) -> &mut T {
+    pub fn get_tile(&self, hex: &Hex) -> Option<&T> {
         let axial = hex.to_axial();
         
         if axial.q < 0 || (axial.q as usize) >= CHUNK_WIDTH {
@@ -82,16 +72,34 @@ impl<T: TileData> HexChunk<T> {
         }
 
         let (q, r) = (axial.q as usize, axial.r as usize);
-        &mut self.tiles[q + r * CHUNK_WIDTH]
+        let tile = self.tiles.get(q + r * CHUNK_WIDTH)?;
+        tile.as_ref()
+    }
+
+    pub fn get_tile_mut(&mut self, hex: &Hex) -> Option<&mut T> {
+        let axial = hex.to_axial();
+        
+        if axial.q < 0 || (axial.q as usize) >= CHUNK_WIDTH {
+            panic!();
+        }
+        if axial.r < 0 || (axial.r as usize) >= CHUNK_HEIGHT {
+            panic!();
+        }
+
+        let (q, r) = (axial.q as usize, axial.r as usize);
+        let tile = self.tiles.get_mut(q + r * CHUNK_WIDTH)?;
+        tile.as_mut()
     }
 }
 
 //
 // Hex map
 
-pub struct HexMap<T: TileData> {
+pub struct HexMap<T> {
     chunks: Vec<HexChunk<T>>,
     chunks_sparse: Vec<Vec<Option<usize>>>,
+
+    pub get_height: fn(&T) -> u8,
 
     pub position: Vec2<f32>,
     pub tallest: u8,
@@ -105,7 +113,7 @@ pub struct HexMap<T: TileData> {
     pub wall_vert_offset: f32,
 }
 
-impl<T: TileData> HexMap<T> {
+impl<T> HexMap<T> {
     pub fn new(
         hex_width: f32,
         hex_height: f32,
@@ -118,6 +126,8 @@ impl<T: TileData> HexMap<T> {
             chunks: vec![],
             chunks_sparse: vec![], 
 
+            get_height: |_| 0,
+
             position: Vec2::zero(),
             tallest: 0,
 
@@ -129,6 +139,12 @@ impl<T: TileData> HexMap<T> {
             wall_vert_offset,
             wall_vert_step,
         }
+    }
+
+    pub fn clear_map(&mut self) {
+        self.chunks = vec![];
+        self.chunks_sparse = vec![];
+        self.tallest = 0;
     }
 
     pub fn hex_to_chunk(&self, hex: &Hex) -> (ChunkPos, Axial) {
@@ -238,18 +254,18 @@ impl<T: TileData> HexMap<T> {
             let cube_hex = axial_hex.to_fractional_cube();
             let axial_hex = cube_hex.to_cube().to_axial();
     
-            let tile = if let Some(tile) = self.try_get_tile(&Hex::Axial(axial_hex)) {
+            let tile = if let Some(tile) = self.get_tile(&Hex::Axial(axial_hex)) {
                 tile
             } else {
                 continue;
             };
 
-            if tile.height() != height {
+            if (self.get_height)(&tile) != height {
                 continue;
             }
 
-            if tallest_height.is_none() || tile.height() > tallest_height.unwrap().0 {
-                tallest_height = Some((tile.height(), axial_hex));
+            if tallest_height.is_none() || (self.get_height)(&tile) > tallest_height.unwrap().0 {
+                tallest_height = Some(((self.get_height)(&tile), axial_hex));
             }
         }
 
@@ -276,32 +292,37 @@ impl<T: TileData> HexMap<T> {
         )
     }
 
-    pub fn get_tile(&self, hex: &Hex) -> &T {
-        self.try_get_tile(hex).unwrap()
+    pub fn set_tile(&mut self, hex: &Hex, tile: T) {
+        let (chunk_pos, axial) = self.hex_to_chunk(&hex);
+        if !self.does_chunk_exist(chunk_pos) {
+            let array = none_array::create_array::<T, CHUNK_TOTAL>();
+            self.insert_chunk(HexChunk::new(array, chunk_pos.q, chunk_pos.r))
+        }
+
+        let (q, r) = chunk_pos.sparse_index();
+        let index = self.chunks_sparse[q][r].unwrap();
+        let chunk = &mut self.chunks[index];
+        chunk.set_tile(&axial.to_hex(), tile);
     }
 
-    pub fn try_get_tile(&self, hex: &Hex) -> Option<&T> {
+    pub fn get_tile(&self, hex: &Hex) -> Option<&T> {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
 
         if self.does_chunk_exist(chunk_pos) {
             let (q, r) = chunk_pos.sparse_index();
             let index = self.chunks_sparse[q][r].unwrap();
-            return Some(self.chunks[index].get_tile(&axial.to_hex()));
+            return self.chunks[index].get_tile(&axial.to_hex());
         }
         None
     }
     
-    pub fn get_tile_mut(&mut self, hex: &Hex) -> &mut T {
-        self.try_get_tile_mut(hex).unwrap()
-    } 
-
-    pub fn try_get_tile_mut(&mut self, hex: &Hex) -> Option<&mut T> {
+    pub fn get_tile_mut(&mut self, hex: &Hex) -> Option<&mut T> {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
 
         if self.does_chunk_exist(chunk_pos) {
             let (q, r) = chunk_pos.sparse_index();
             let index = self.chunks_sparse[q][r].unwrap();
-            return Some(self.chunks[index].get_tile_mut(&axial.to_hex()));
+            return self.chunks[index].get_tile_mut(&axial.to_hex());
         }
         None
     }
@@ -321,6 +342,31 @@ impl Hex {
         match self {
             Hex::Axial(hex) => *hex,
             Hex::Cube(hex) => hex.to_axial(),
+        }
+    }
+
+    pub fn neighbors(&self) -> [Hex; 6] {
+        match self {
+            Hex::Axial(Axial { q, r }) => {
+                [
+                    Hex::Axial(Axial::new(*q, *r-1)),
+                    Hex::Axial(Axial::new(*q+1, *r-1)),
+                    Hex::Axial(Axial::new(*q+1, *r)),
+                    Hex::Axial(Axial::new(*q, *r+1)),
+                    Hex::Axial(Axial::new(*q-1, *r+1)),
+                    Hex::Axial(Axial::new(*q-1, *r)),
+                ]
+            } 
+            Hex::Cube(Cube { q, r, s }) => {
+                [
+                    Hex::Cube(Cube::new(*q, *r-1, *s+1)),
+                    Hex::Cube(Cube::new(*q+1, *r-1, *s)),
+                    Hex::Cube(Cube::new(*q+1, *r, *s-1)),
+                    Hex::Cube(Cube::new(*q, *r+1, *s-1)),
+                    Hex::Cube(Cube::new(*q-1, *r+1, *s)),
+                    Hex::Cube(Cube::new(*q-1, *r, *s+1)),
+                ]
+            }
         }
     }
 }
