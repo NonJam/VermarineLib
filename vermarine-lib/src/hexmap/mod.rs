@@ -254,7 +254,7 @@ impl<T> HexMap<T> {
             let cube_hex = axial_hex.to_fractional_cube();
             let axial_hex = cube_hex.to_cube().to_axial();
     
-            let tile = if let Some(tile) = self.get_tile(&Hex::Axial(axial_hex)) {
+            let tile = if let Some(tile) = self.get_tile(Hex::Axial(axial_hex)) {
                 tile
             } else {
                 continue;
@@ -275,7 +275,7 @@ impl<T> HexMap<T> {
         None
     }
 
-    pub fn axial_to_pixel(&mut self, hex: Axial) -> (f32, f32) {
+    pub fn axial_to_pixel(&self, hex: Axial) -> (f32, f32) {
         let size_x = self.hex_width / f32::sqrt(3.0);
         // this value is derived by solving for X in:
         // FLOOR_VERT_STEP * R = X * (3.0 / 2.0 * R) 
@@ -305,7 +305,7 @@ impl<T> HexMap<T> {
         chunk.set_tile(&axial.to_hex(), tile);
     }
 
-    pub fn get_tile(&self, hex: &Hex) -> Option<&T> {
+    pub fn get_tile(&self, hex: Hex) -> Option<&T> {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
 
         if self.does_chunk_exist(chunk_pos) {
@@ -316,7 +316,7 @@ impl<T> HexMap<T> {
         None
     }
     
-    pub fn get_tile_mut(&mut self, hex: &Hex) -> Option<&mut T> {
+    pub fn get_tile_mut(&mut self, hex: Hex) -> Option<&mut T> {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
 
         if self.does_chunk_exist(chunk_pos) {
@@ -331,10 +331,42 @@ impl<T> HexMap<T> {
 //
 // Hex structs
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Hex {
     Axial(Axial),
     Cube(Cube),
+}
+
+impl std::ops::Add for Hex {
+    type Output = Hex;
+
+    fn add(self, other: Hex) -> Hex {
+        match (self, other) {
+            (Hex::Axial(a), Hex::Axial(b)) => (a + b).to_hex(),
+            (Hex::Cube(a), Hex::Cube(b)) => (a + b).to_hex(),
+            (Hex::Axial(axial), Hex::Cube(cube)) | (Hex::Cube(cube), Hex::Axial(axial)) => { 
+                let cube = cube.to_axial(); 
+                (axial + cube).to_hex()
+            }, 
+        }
+    }
+}
+
+impl std::ops::AddAssign for Hex {
+    fn add_assign(&mut self, other: Hex) {
+        match (self, other) {
+            (Hex::Axial(a), Hex::Axial(b)) => *a += b,
+            (Hex::Cube(a), Hex::Cube(b)) => *a += b,
+            (Hex::Axial(axial), Hex::Cube(cube)) => { 
+                let cube = cube.to_axial(); 
+                *axial += cube;
+            },
+            (Hex::Cube(cube), Hex::Axial(axial)) => {
+                let axial = axial.to_cube();
+                *cube += axial;
+            }
+        };
+    }
 }
 
 impl Hex {
@@ -371,10 +403,27 @@ impl Hex {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Axial {
     pub q: i32,
     pub r: i32,
+}
+
+impl std::ops::Add for Axial {
+    type Output = Axial;
+
+    fn add(mut self, other: Axial) -> Axial {
+        self.q += other.q;
+        self.r += other.r;
+        self
+    }
+}
+
+impl std::ops::AddAssign for Axial {
+    fn add_assign(&mut self, other: Axial) {
+        self.q += other.q;
+        self.r += other.r;
+    }
 }
 
 impl Axial {
@@ -393,11 +442,29 @@ impl Axial {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Cube {
     pub q: i32,
     pub r: i32,
     pub s: i32,
+}
+
+impl std::ops::Add for Cube {
+    type Output = Cube;
+
+    fn add(self, other: Cube) -> Cube {
+        (self.to_axial() + other.to_axial()).to_cube()
+    }
+}
+
+impl std::ops::AddAssign for Cube {
+    fn add_assign(&mut self, other: Cube) {
+        let cube = (self.to_axial() + other.to_axial()).to_cube();
+
+        self.q = cube.q;
+        self.r = cube.r;
+        self.s = cube.s;
+    }
 }
 
 impl Cube {
