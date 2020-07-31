@@ -131,9 +131,13 @@ impl DrawBuffer {
         } 
     }
 
-    /// Panics if there isn't a command pool
+    /// Panics if there isn't a command pool or if it was finished
     pub fn get_command_pool(&mut self) -> &mut DrawCommandPool {
-        self.buffers.last_mut().unwrap()
+        let buffer = self.buffers.last_mut().unwrap();
+        if buffer.finished {
+            panic!();
+        }
+        buffer
     }
 }
 

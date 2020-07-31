@@ -275,6 +275,7 @@ impl<T> HexMap<T> {
         None
     }
 
+    /// Returns the top left pixel of a bounding box around the hex
     pub fn axial_to_pixel(&self, hex: Axial) -> (f32, f32) {
         let size_x = self.hex_width / f32::sqrt(3.0);
         // this value is derived by solving for X in:
@@ -287,8 +288,8 @@ impl<T> HexMap<T> {
         let x = size_x * (f32::sqrt(3.0) * hex.q as f32 + f32::sqrt(3.0) / 2.0 * hex.r as f32);
         let y = size_y * (3.0 / 2.0 * hex.r as f32);
         (
-            x + 18. + self.position.x,
-            y + 18. + self.position.y,
+            x + self.position.x,
+            y + self.position.y,
         )
     }
 
