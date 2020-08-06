@@ -370,6 +370,34 @@ impl std::ops::AddAssign for Hex {
     }
 }
 
+impl std::ops::Add<Axial> for Hex {
+    type Output = Hex;
+
+    fn add(self, other: Axial) -> Hex {
+        self + other.to_hex()
+    }
+}
+
+impl std::ops::Add<Cube> for Hex {
+    type Output = Hex;
+
+    fn add(self, other: Cube) -> Hex {
+        self + other.to_hex()
+    }
+}
+
+impl std::ops::AddAssign<Axial> for Hex {
+    fn add_assign(&mut self, other: Axial) {
+        *self += other.to_hex();
+    }
+}
+
+impl std::ops::AddAssign<Cube> for Hex {
+    fn add_assign(&mut self, other: Cube) {
+        *self += other.to_hex();
+    }
+}
+
 impl Hex {
     pub fn to_axial(&self) -> Axial {
         match self {
