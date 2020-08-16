@@ -276,7 +276,7 @@ impl<T> HexMap<T> {
     }
 
     /// Returns the top left pixel of a bounding box around the hex
-    pub fn axial_to_pixel(&self, hex: Axial) -> (f32, f32) {
+    pub fn axial_to_pixel(&self, hex: Axial) -> Vec2<f32> {
         let size_x = self.hex_width / f32::sqrt(3.0);
         // this value is derived by solving for X in:
         // FLOOR_VERT_STEP * R = X * (3.0 / 2.0 * R) 
@@ -287,7 +287,8 @@ impl<T> HexMap<T> {
 
         let x = size_x * (f32::sqrt(3.0) * hex.q as f32 + f32::sqrt(3.0) / 2.0 * hex.r as f32);
         let y = size_y * (3.0 / 2.0 * hex.r as f32);
-        (
+
+        Vec2::new(
             x + self.position.x,
             y + self.position.y,
         )
