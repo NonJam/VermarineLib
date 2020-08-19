@@ -294,7 +294,7 @@ impl<T> HexMap<T> {
         )
     }
 
-    pub fn set_tile(&mut self, hex: &Hex, tile: T) {
+    pub fn set_tile(&mut self, hex: Hex, tile: T) {
         let (chunk_pos, axial) = self.hex_to_chunk(&hex);
         if !self.does_chunk_exist(chunk_pos) {
             let array = none_array::create_array::<T, CHUNK_TOTAL>();
